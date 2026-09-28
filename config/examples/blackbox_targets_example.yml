@@ -1,0 +1,13 @@
+# =============================================================================
+# EXAMPLE: Blackbox ICMP Targets File (/etc/prometheus/targets/blackbox/netmonitor.yml)
+# =============================================================================
+# Strictly contains ICMP probe targets for reachability & latency testing.
+# Completely decoupled from SNMP exporter configuration.
+# =============================================================================
+
+- targets:
+    - '192.168.111.103'   # Cisco Catalyst 9200 (HR-SW02)
+    - '192.168.255.110'   # HPE 2530-48G Switch (U1-SW-HPE2530-NW)
+  labels:
+    job: 'blackbox-icmp'
+    module: 'icmp'

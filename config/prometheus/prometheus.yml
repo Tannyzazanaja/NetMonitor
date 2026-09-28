@@ -1,0 +1,108 @@
+# =============================================================================
+# REDESIGNED PROMETHEUS CONFIGURATION (NetMonitor Unified Architecture)
+# =============================================================================
+# Architecture Highlights:
+# 1. Blackbox Job: Strictly dedicated to ICMP ping checks; reads ONLY blackbox/*.yml
+# 2. SNMP Job: Single unified generic job for all vendors; reads ONLY snmp/*.yml
+# 3. Dynamic Relabeling: Extracts SNMP module and auth profile directly from target labels
+# 4. Zero Redundant Scrapes: Eliminates duplicate scrapes (if_mib, cisco_basic, host_resources)
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files:
+  # - "alert_rules.yml"
+
+scrape_configs:
+  # ---------------------------------------------------------------------------
+  # 1. Prometheus Self-Monitoring
+  # ---------------------------------------------------------------------------
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          app: 'prometheus'
+
+  # ---------------------------------------------------------------------------
+  # 2. Blackbox ICMP Job (Exclusive to ICMP Reachability & Ping Latency)
+  # ---------------------------------------------------------------------------
+  # Reads ONLY files in /etc/prometheus/targets/blackbox/
+  # Never reads SNMP targets to prevent erroneous probing
+  - job_name: 'blackbox-icmp'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /probe
+    params:
+      module: [icmp]
+
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/blackbox/*.yml
+        refresh_interval: 1m
+
+    relabel_configs:
+      # Step A: Pass the target IP into Blackbox exporter query param ?target=
+      - source_labels: [__address__]
+        target_label: __param_target
+
+      # Step B: Keep clean device IP as the 'instance' label
+      - source_labels: [__param_target]
+        target_label: instance
+
+      # Step C: Redirect HTTP scrape request to the Blackbox Exporter daemon
+      - target_label: __address__
+        replacement: localhost:9115
+
+  # ---------------------------------------------------------------------------
+  # 3. Unified SNMP Job (Generic Single Job for ALL Vendors)
+  # ---------------------------------------------------------------------------
+  # Reads ONLY files in /etc/prometheus/targets/snmp/
+  # Dynamic module & auth selection via labels (Cisco, Aruba/HPE, Ruckus, etc.)
+  - job_name: 'snmp'
+    scrape_interval: 1m
+    scrape_timeout: 45s
+    metrics_path: /snmp
+
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/snmp/*.yml
+        refresh_interval: 1m
+
+    relabel_configs:
+      # Step A: Target IP -> __param_target
+      - source_labels: [__address__]
+        target_label: __param_target
+
+      # Step B: Module Selection -> __param_module (with safe fallback to if_mib)
+      - source_labels: [module]
+        regex: '(.+)'
+        target_label: __param_module
+      - source_labels: [__param_module]
+        regex: '^$'
+        target_label: __param_module
+        replacement: if_mib
+
+      # Step C: Auth Profile -> __param_auth (with safe fallback to seavl77_v2)
+      - source_labels: [auth]
+        regex: '(.+)'
+        target_label: __param_auth
+      - source_labels: [__param_auth]
+        regex: '^$'
+        target_label: __param_auth
+        replacement: seavl77_v2
+
+      # Step D: Instance Label -> clean IP (consistent with Blackbox & UI)
+      - source_labels: [__param_target]
+        target_label: instance
+
+      # Step E: Address -> SNMP Exporter daemon
+      - target_label: __address__
+        replacement: localhost:9116

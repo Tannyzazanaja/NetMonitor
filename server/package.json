@@ -1,0 +1,14 @@
+{
+  "name": "netmonitor-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NetMonitor High-Performance Vanilla Node Storage & Monitoring API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "net-snmp": "^3.26.3",
+    "ping": "^1.0.0"
+  }
+}

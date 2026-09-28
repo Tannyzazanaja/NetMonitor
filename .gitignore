@@ -1,0 +1,53 @@
+# Logs and debugging
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Production build outputs
+dist/
+dist-ssr/
+build/
+
+# Environment and sensitive credential files
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+
+# Backup, temporary, and legacy artifacts
+*.bak
+*.backup
+*.fixed
+*.new
+*.tmp
+*.tmp.*
+*.swp
+*.swo
+deploy_backend.sh
+
+# Runtime local data & caches (preserve db.json & defaultDevices.json)
+data/alert_ack.json
+data/alert_history.json
+data/perf_history.json
+data/targets/
+
+# IDE, OS, and Editor files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
