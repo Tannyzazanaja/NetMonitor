@@ -453,7 +453,7 @@ export function TopologyProvider({ children }) {
         nodeCount: topoNodes.length,
         edgeCount: rawLinks.length,
         layoutMode,
-        discoveryPlatform: 'SEAVL NetMonitor Semi-Automatic Discovery',
+        discoveryPlatform: 'Enterprise Network Topology Discovery',
       },
       nodes: topoNodes.map(n => ({
         id: n.id,

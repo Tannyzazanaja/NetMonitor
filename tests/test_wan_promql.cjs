@@ -36,10 +36,10 @@ function buildWanPromQL(dir = 'in', wanIf = '', wanIp = '') {
 console.log('=== TEST: WAN PromQL Hierarchy Builder ===');
 
 // Test 1: Inbound query with configured interface
-const qInCustom = buildWanPromQL('in', 'Port-channel2', '192.168.255.27');
+const qInCustom = buildWanPromQL('in', 'Port-channel2', '10.0.0.1');
 assert(qInCustom.includes('ifHCInOctets'), 'Should query ifHCInOctets');
 assert(qInCustom.includes('ifInOctets'), 'Should include 32-bit ifInOctets fallback');
-assert(qInCustom.includes('192.168.255.27'), 'Should include configured IP');
+assert(qInCustom.includes('10.0.0.1'), 'Should include configured IP');
 assert(qInCustom.includes('Port-channel2'), 'Should include configured interface');
 assert(qInCustom.includes('vector(0)'), 'Should end with safe vector(0) baseline');
 console.log('✓ Test 1: Custom WAN interface with IP passed');

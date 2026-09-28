@@ -26,12 +26,12 @@ console.log('[1] Testing Settings Validation Engine:');
 it('Validates clean, valid settings object', () => {
   const result = validateSettings({
     refreshInterval: 15,
-    prometheusUrl: 'http://192.168.109.147:9090',
-    grafanaUrl: 'http://192.168.109.147:3000',
+    prometheusUrl: 'http://10.0.0.1:9090',
+    grafanaUrl: 'http://10.0.0.1:3000',
     defaultModule: 'cisco_switch',
-    defaultCommunity: 'seavl77',
+    defaultCommunity: 'public',
     wanInterface: 'GigabitEthernet0/0/0',
-    orgName: 'SEAVL ENTERPRISE NETWORK',
+    orgName: 'Enterprise Network',
     lineChannelToken: 'secret_token_123',
     lineTargetId: 'U123456789'
   });
@@ -40,7 +40,7 @@ it('Validates clean, valid settings object', () => {
   assert.strictEqual(result.errors.length, 0);
   assert.strictEqual(result.cleanSettings.refreshInterval, 15);
   assert.strictEqual(result.cleanSettings.defaultModule, 'cisco_switch');
-  assert.strictEqual(result.cleanSettings.prometheusUrl, 'http://192.168.109.147:9090');
+  assert.strictEqual(result.cleanSettings.prometheusUrl, 'http://10.0.0.1:9090');
 });
 
 it('Rejects invalid refreshInterval (< 3 or > 120 seconds)', () => {
@@ -110,7 +110,7 @@ it('Strips plaintext SNMP community strings from all device records', () => {
       { ip: '192.168.1.2', name: 'Dist-SW', community: 'super_secret_comm_2' }
     ],
     settings: {
-      defaultCommunity: 'seavl77',
+      defaultCommunity: 'public',
       lineChannelToken: 'line_token_xyz',
       lineTargetId: 'U_target_123'
     }
@@ -131,8 +131,8 @@ it('Strips plaintext SNMP community strings from all device records', () => {
 it('Masks sensitive credentials in settings and supplies secure flags', () => {
   const mockDb = {
     settings: {
-      prometheusUrl: 'http://192.168.109.147:9090',
-      defaultCommunity: 'seavl77',
+      prometheusUrl: 'http://localhost:9090',
+      defaultCommunity: 'public',
       lineChannelToken: 'line_token_secret',
       lineTargetId: 'target_group_999'
     }
@@ -140,7 +140,7 @@ it('Masks sensitive credentials in settings and supplies secure flags', () => {
 
   const safe = sanitizeDbForFrontend(mockDb, 'Admin');
 
-  assert.strictEqual(safe.settings.prometheusUrl, 'http://192.168.109.147:9090');
+  assert.strictEqual(safe.settings.prometheusUrl, 'http://localhost:9090');
   assert.strictEqual(safe.settings.defaultCommunity, '***');
   assert.strictEqual(safe.settings.lineChannelToken, '***');
   assert.strictEqual(safe.settings.lineTargetId, '***');
@@ -169,7 +169,7 @@ it('Preserves existing device community string when frontend saves sanitized dev
     { ip: '192.168.1.30', name: 'SW-3-New' } // New device, should get default
   ];
 
-  const defaultCommunity = 'seavl77';
+  const defaultCommunity = 'public';
   const existingMap = new Map();
   existingDbDevices.forEach(d => existingMap.set(d.ip, d.community));
 
@@ -183,7 +183,7 @@ it('Preserves existing device community string when frontend saves sanitized dev
 
   assert.strictEqual(merged[0].community, 'custom_secret_1'); // Preserved from DB!
   assert.strictEqual(merged[1].community, 'custom_secret_2'); // Preserved from DB!
-  assert.strictEqual(merged[2].community, 'seavl77'); // Assigned default!
+  assert.strictEqual(merged[2].community, 'public'); // Assigned default!
 });
 
 // -----------------------------------------------------------------------------

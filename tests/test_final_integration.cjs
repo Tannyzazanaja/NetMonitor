@@ -60,7 +60,7 @@ runScenario(1, 'Login Viewer', () => {
 runScenario(2, 'Viewer เปิด Dashboard ได้ (Data Read Access)', () => {
   const mockDb = {
     devices: [{ ip: '192.168.1.10', name: 'Core-01', community: 'secret77' }],
-    settings: { refreshInterval: 10, defaultCommunity: 'secret77', orgName: 'SEAVL' }
+    settings: { refreshInterval: 10, defaultCommunity: 'secret77', orgName: 'Enterprise' }
   };
   const sanitized = sanitizeDbForFrontend(mockDb, 'Viewer');
   assert.ok(sanitized.devices.length === 1);
@@ -115,7 +115,7 @@ runScenario(5, 'Add Device (DB update -> Blackbox target -> SNMP target)', () =>
   const db = {
     devices: [newDevice],
     deletedIps: [],
-    settings: { defaultCommunity: 'seavl77', defaultModule: 'if_mib' }
+    settings: { defaultCommunity: 'public', defaultModule: 'if_mib' }
   };
 
   const active = getActiveDevices(db);
@@ -128,12 +128,12 @@ runScenario(5, 'Add Device (DB update -> Blackbox target -> SNMP target)', () =>
   // Blackbox target verification
   assert.ok(blackboxYaml.includes("192.168.100.50"), 'Blackbox targets must include new IP');
   assert.ok(blackboxYaml.includes("module: 'icmp'"), 'Blackbox must specify icmp module');
-  assert.ok(!blackboxYaml.includes("seavl77"), 'Blackbox must not have SNMP parameters');
+  assert.ok(!blackboxYaml.includes("public"), 'Blackbox must not have SNMP parameters');
 
   // SNMP target verification
   assert.ok(snmpYaml.includes("target: '192.168.100.50'"), 'SNMP target must include new IP');
   assert.ok(snmpYaml.includes("module: 'cisco_switch'"), 'SNMP target must auto-resolve to cisco_switch');
-  assert.ok(snmpYaml.includes("auth: 'seavl77_v2'"), 'SNMP target must map to auth profile seavl77_v2');
+  assert.ok(snmpYaml.includes("auth: 'public_v2'"), 'SNMP target must map to auth profile public_v2');
 });
 
 // -----------------------------------------------------------------------------
@@ -241,7 +241,7 @@ runScenario(10, 'Edit Device (Prometheus target labels update)', () => {
     enabled: true
   };
 
-  const { snmpYaml } = generateTargetsYaml([device], { defaultCommunity: 'seavl77' });
+  const { snmpYaml } = generateTargetsYaml([device], { defaultCommunity: 'public' });
   assert.ok(snmpYaml.includes("name: 'Core-SW-Renamed'"));
   assert.ok(snmpYaml.includes("module: 'aruba_switch'"), 'Should switch module to aruba_switch based on HP model');
   assert.ok(snmpYaml.includes("location: 'Server Room B'"));

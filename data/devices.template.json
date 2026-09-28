@@ -1,0 +1,41 @@
+[
+  {
+    "id": "dev-01",
+    "name": "Core-Switch-01",
+    "ip": "192.0.2.1",
+    "type": "coreswitch",
+    "category": "network",
+    "vendor": "Cisco",
+    "model": "Catalyst 9300-48U",
+    "location": "Main Data Center - Rack A01",
+    "community": "public",
+    "module": "cisco_switch",
+    "isOnline": true
+  },
+  {
+    "id": "dev-02",
+    "name": "Dist-Switch-01",
+    "ip": "192.0.2.10",
+    "type": "distswitch",
+    "category": "network",
+    "vendor": "Aruba",
+    "model": "CX 6200F 48G",
+    "location": "Building 1 - IDF 2F",
+    "community": "public",
+    "module": "aruba_switch",
+    "isOnline": true
+  },
+  {
+    "id": "dev-03",
+    "name": "Edge-Switch-01",
+    "ip": "192.0.2.20",
+    "type": "switch",
+    "category": "network",
+    "vendor": "Cisco",
+    "model": "Catalyst 2960X-24PD-L",
+    "location": "Building 1 - Floor 1 Office",
+    "community": "public",
+    "module": "cisco_switch",
+    "isOnline": true
+  }
+]

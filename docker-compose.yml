@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  netmonitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: netmonitor-app
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=production
+      - PORT=5001
+      - PROMETHEUS_URL=http://prometheus:9090
+      - PROMETHEUS_TARGETS_DIR=/etc/prometheus/targets
+      - SNMP_EXPORTER_URL=http://snmp-exporter:9116
+      - BLACKBOX_EXPORTER_URL=http://blackbox-exporter:9115
+      - GRAFANA_URL=http://grafana:3000
+    volumes:
+      - ./data:/app/data
+      - prometheus_targets:/etc/prometheus/targets
+    networks:
+      - netmonitor-net
+    depends_on:
+      - prometheus
+      - blackbox-exporter
+      - snmp-exporter
+
+  prometheus:
+    image: prom/prometheus:v2.45.3
+    container_name: netmonitor-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_targets:/etc/prometheus/targets
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - netmonitor-net
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.24.0
+    container_name: netmonitor-blackbox
+    restart: unless-stopped
+    cap_add:
+      - NET_RAW
+    volumes:
+      - ./config/prometheus/blackbox.yml:/config/blackbox.yml:ro
+    ports:
+      - "9115:9115"
+    networks:
+      - netmonitor-net
+
+  snmp-exporter:
+    image: prom/snmp-exporter:v0.24.1
+    container_name: netmonitor-snmp
+    restart: unless-stopped
+    volumes:
+      - ./config/prometheus/snmp.yml:/etc/snmp_exporter/snmp.yml:ro
+    ports:
+      - "9116:9116"
+    networks:
+      - netmonitor-net
+
+  grafana:
+    image: grafana/grafana-oss:10.2.3
+    container_name: netmonitor-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - netmonitor-net
+
+volumes:
+  prometheus_targets:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  netmonitor-net:
+    driver: bridge

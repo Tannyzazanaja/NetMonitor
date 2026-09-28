@@ -6,8 +6,9 @@
 # =============================================================================
 
 - targets:
-    - '192.168.111.103'   # Cisco Catalyst 9200 (HR-SW02)
-    - '192.168.255.110'   # HPE 2530-48G Switch (U1-SW-HPE2530-NW)
+    - '192.0.2.1'     # Core Switch (DC-CORE-01)
+    - '192.0.2.10'    # Distribution Switch (BLDG1-DIST-01)
+    - '192.0.2.20'    # Access Switch (FLOOR1-ACC-01)
   labels:
     job: 'blackbox-icmp'
     module: 'icmp'

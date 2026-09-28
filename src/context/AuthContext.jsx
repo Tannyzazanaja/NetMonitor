@@ -87,6 +87,12 @@ export function AuthProvider({ children }) {
     return <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)' }}>Loading session...</div>;
   }
 
+  const refreshSession = useCallback(async () => {
+    const u = await AuthService.fetchSession();
+    setUser(u);
+    return u;
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -98,6 +104,7 @@ export function AuthProvider({ children }) {
         canEdit,
         login,
         logout,
+        refreshSession,
       }}
     >
       {children}

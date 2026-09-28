@@ -318,9 +318,9 @@ export class PrometheusClient {
 /**
  * Normalizes an instance, address, or target string into a clean IPv4 address.
  * Examples:
- * - "192.168.111.254:161" -> "192.168.111.254"
- * - "http://192.168.111.84:9115/probe?target=192.168.111.84" -> "192.168.111.84"
- * - "192.168.111.1" -> "192.168.111.1"
+ * - "192.0.2.1:161" -> "192.0.2.1"
+ * - "http://192.0.2.10:9115/probe?target=192.0.2.10" -> "192.0.2.10"
+ * - "192.0.2.20" -> "192.0.2.20"
  */
 export function normalizeIp(str) {
   if (!str) return '';
@@ -329,7 +329,9 @@ export function normalizeIp(str) {
   return String(str).replace(/:\d+$/, '').trim();
 }
 
-export const defaultPromClient = new PrometheusClient('http://192.168.109.147:9090');
+export const defaultPromClient = new PrometheusClient(
+  typeof window !== 'undefined' ? `http://${window.location.hostname}:9090` : 'http://localhost:9090'
+);
 
 /**
  * Builds a robust PromQL query for WAN / Gateway / Uplink traffic.

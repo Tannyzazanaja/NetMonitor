@@ -23,7 +23,7 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }) {
   }, []);
 
   const onlineCount = devices.filter(d => d.status === 'online').length;
-  const pUrl = settings.prometheusUrl || settings.proxyUrl || 'http://192.168.109.147:9090';
+  const pUrl = settings.prometheusUrl || settings.proxyUrl || (typeof window !== 'undefined' ? `http://${window.location.hostname}:9090` : 'http://localhost:9090');
 
   return (
     <header

@@ -10,6 +10,7 @@ import { AlertProvider } from './context/AlertContext';
 import { Navbar } from './components/common/Navbar';
 import { Sidebar } from './components/common/Sidebar';
 import { LoginPage } from './components/auth/LoginPage';
+import { SetupWizard } from './components/setup/SetupWizard';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { TopologyView } from './components/topology/TopologyView';
 import { DeviceManagerView } from './components/devices/DeviceManagerView';
@@ -161,8 +162,36 @@ function MainApp() {
 }
 
 function AuthenticatedProviders({ children }) {
-  const { isAuthenticated, user } = useAuth();
-  
+  const { isAuthenticated, user, refreshSession } = useAuth();
+  const [setupStatus, setSetupStatus] = React.useState({ checked: false, isConfigured: true });
+
+  React.useEffect(() => {
+    fetch('/api/setup/status')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.success) {
+          setSetupStatus({ checked: true, isConfigured: Boolean(data.isConfigured) });
+        } else {
+          setSetupStatus({ checked: true, isConfigured: true });
+        }
+      })
+      .catch(() => {
+        setSetupStatus({ checked: true, isConfigured: true });
+      });
+  }, []);
+
+  const handleSetupComplete = async () => {
+    setSetupStatus({ checked: true, isConfigured: true });
+    if (refreshSession) {
+      await refreshSession();
+    }
+    window.location.reload();
+  };
+
+  if (setupStatus.checked && !setupStatus.isConfigured) {
+    return <SetupWizard onComplete={handleSetupComplete} />;
+  }
+
   // Use key to force unmount/remount of contexts when auth state changes.
   // This guarantees that all contexts fetch fresh data after login, and clears data on logout.
   const authKey = isAuthenticated ? `user-${user?.username}` : 'guest';

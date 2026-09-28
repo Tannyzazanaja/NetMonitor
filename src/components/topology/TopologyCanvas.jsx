@@ -537,7 +537,7 @@ export function TopologyCanvas() {
 
     ctx.font = 'bold 24px "Outfit", "Inter", sans-serif';
     ctx.fillStyle = '#f8fafc';
-    ctx.fillText('SEAVL NETMONITOR - ENTERPRISE TOPOLOGY DISCOVERY', 40, 42);
+    ctx.fillText('ENTERPRISE NETWORK TOPOLOGY', 40, 42);
 
     ctx.font = '14px "JetBrains Mono", monospace';
     ctx.fillStyle = '#94a3b8';

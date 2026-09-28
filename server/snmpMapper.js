@@ -20,15 +20,12 @@ const VALID_SNMP_MODULES = [
 
 // Valid auth profiles defined in snmp.yml
 const VALID_AUTH_PROFILES = [
-  'seavl77_v2',     // SNMPv2c with community: seavl77
   'public_v2',      // SNMPv2c with community: public
   'public_v1',      // SNMPv1 with community: public
 ];
 
 // Community string to Auth Profile translation map
 const COMMUNITY_TO_AUTH_MAP = {
-  'seavl77': 'seavl77_v2',
-  'seavl77_v2': 'seavl77_v2',
   'public': 'public_v2',
   'public_v2': 'public_v2',
   'public_v1': 'public_v1',
@@ -130,7 +127,7 @@ function resolveDeviceModule(dev = {}) {
  * Resolves a community string or auth input to an authorized SNMP Exporter auth profile name.
  * Frontend does not need to know plaintext community strings.
  */
-function resolveAuthProfile(communityOrAuth, defaultProfile = 'seavl77_v2') {
+function resolveAuthProfile(communityOrAuth, defaultProfile = 'public_v2') {
   if (!communityOrAuth || typeof communityOrAuth !== 'string') {
     return defaultProfile;
   }

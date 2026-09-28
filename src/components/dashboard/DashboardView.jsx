@@ -477,6 +477,65 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Empty State Onboarding Banner */}
+      {devices.length === 0 && (
+        <div
+          className="panel"
+          style={{
+            padding: '24px 28px',
+            background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.06) 0%, rgba(59, 130, 246, 0.08) 100%)',
+            border: '1px solid rgba(0, 212, 255, 0.25)',
+            borderRadius: 'var(--radius-lg)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 16,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 'var(--radius)',
+                background: 'rgba(0, 212, 255, 0.15)',
+                border: '1px solid rgba(0, 212, 255, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Server size={24} color="var(--primary)" />
+            </div>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
+                No Devices Monitored Yet
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                Add network switches, routers, or servers, or run the subnet discovery scanner to begin telemetry monitoring.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={() => onSelectTab('devices')}
+              className="btn btn-secondary"
+              style={{ fontSize: 12, padding: '7px 14px' }}
+            >
+              Go to Device Manager
+            </button>
+            <button
+              onClick={onOpenAddDevice}
+              className="btn btn-primary"
+              style={{ fontSize: 12, padding: '7px 16px' }}
+            >
+              + Add First Device
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 1. Main KPI Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
         {/* Card 1: Total Devices */}

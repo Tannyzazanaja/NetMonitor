@@ -240,7 +240,7 @@ export function DeviceFormModal({ isOpen, onClose, initialIp = null, initialData
                 type="text"
                 value={ip}
                 onChange={(e) => setIp(e.target.value)}
-                placeholder="เช่น 192.168.255.31"
+                placeholder="เช่น 192.168.1.10 หรือ 10.0.0.1"
                 className="form-input"
                 style={{
                   flex: 1,

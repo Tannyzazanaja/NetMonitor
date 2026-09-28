@@ -237,7 +237,7 @@ assert.strictEqual(analyticsServerCache.size, 0);
 assert.strictEqual(ANALYTICS_CACHE_TTL, 300000, 'Cache TTL must be exactly 5 minutes (300,000 ms)');
 
 const testKey = 'hwEntityCpuUsage:1000:2000:30s';
-const mockData = [{ metric: { instance: '192.168.111.78' }, values: [[1500, '35.0']] }];
+const mockData = [{ metric: { instance: '192.0.2.78' }, values: [[1500, '35.0']] }];
 
 // 1. Initial Cache Miss
 let cached = analyticsServerCache.get(testKey);
@@ -250,7 +250,7 @@ assert.strictEqual(analyticsServerCache.size, 1);
 // 3. Cache Hit
 cached = analyticsServerCache.get(testKey);
 assert.ok(cached, 'Must be cache hit');
-assert.strictEqual(cached.data[0].metric.instance, '192.168.111.78');
+assert.strictEqual(cached.data[0].metric.instance, '192.0.2.78');
 
 // 4. Test Expiration (simulate 5 minutes and 1 millisecond passing)
 analyticsServerCache.set(testKey, { time: Date.now() - 300001, data: mockData });

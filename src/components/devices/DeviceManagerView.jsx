@@ -195,8 +195,24 @@ export function DeviceManagerView({ onOpenAddDevice, onOpenEditDevice, onOpenExp
             <tbody>
               {filteredDevices.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                    ไม่พบอุปกรณ์ในระบบ กดปุ่ม <strong>[+ เพิ่มอุปกรณ์]</strong> เพื่อเพิ่มอุปกรณ์เข้าสู่ระบบ
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                      <Server size={36} color="var(--primary)" style={{ opacity: 0.7 }} />
+                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                        No Devices Configured
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 420 }}>
+                        No network devices currently configured in monitoring inventory. Add your switches or servers manually, or run subnet auto-discovery.
+                      </div>
+                      <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                        <button onClick={() => onOpenAddDevice()} className="btn btn-primary" style={{ fontSize: 12, padding: '7px 16px' }}>
+                          + Add Device
+                        </button>
+                        <button onClick={() => setIsScannerOpen(true)} className="btn btn-secondary" style={{ fontSize: 12, padding: '7px 16px' }}>
+                          Auto-Discovery
+                        </button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -212,7 +228,7 @@ export function DeviceManagerView({ onOpenAddDevice, onOpenEditDevice, onOpenExp
                     </td>
                     <td style={{ padding: '12px 14px' }}>
                       <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{dev.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>SNMP: {dev.community || 'seavl77'}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>SNMP: {dev.community || 'public'}</div>
                     </td>
                     <td style={{ padding: '12px 14px', fontFamily: 'var(--font-mono)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

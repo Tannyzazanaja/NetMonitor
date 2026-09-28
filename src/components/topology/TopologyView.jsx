@@ -275,6 +275,40 @@ export function TopologyView({ onOpenAddDevice, onOpenEditDevice }) {
         </div>
       </div>
 
+      {/* Empty State Banner */}
+      {topoNodes.length === 0 && (
+        <div
+          className="panel"
+          style={{
+            padding: '40px 24px',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 12,
+            background: 'linear-gradient(135deg, rgba(0, 212, 255, 0.05) 0%, rgba(15, 23, 42, 0.6) 100%)',
+            border: '1px solid rgba(0, 212, 255, 0.2)',
+          }}
+        >
+          <Network size={40} color="var(--primary)" style={{ opacity: 0.8 }} />
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
+            No Topology Graph Available
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 450 }}>
+            No devices or neighbor links discovered. Add switches or launch semi-automatic topology discovery to map your network architecture.
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+            <button onClick={() => onOpenAddDevice()} className="btn btn-primary" style={{ fontSize: 12, padding: '7px 16px' }}>
+              + Add Device
+            </button>
+            <button onClick={runDiscoveryPipeline} className="btn btn-secondary" style={{ fontSize: 12, padding: '7px 16px' }} disabled={isDiscovering}>
+              <Sparkles size={13} />
+              <span>Run Topology Discovery</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 2. Main View Content */}
       {viewType === 'grid' ? (
         <TopologyGrid onOpenAddDevice={onOpenAddDevice} />

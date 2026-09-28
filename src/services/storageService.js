@@ -17,8 +17,9 @@ export const DEFAULT_SETTINGS = {
   prometheusUrl: `http://${window.location.hostname}:9090`,
   grafanaUrl: `http://${window.location.hostname}:3000`,
   refreshInterval: 10, // seconds
-  orgName: 'SEAVL NETWORK MONITOR',
+  orgName: 'Enterprise Network Monitoring Platform',
   wanInterface: 'GigabitEthernet0/0/0',
+  defaultCommunity: 'public',
   defaultModule: 'if_mib',
   emergencyUsername: 'emergency',
 };
@@ -68,25 +69,10 @@ export const StorageService = {
       let serverPositions = res.data.topologyPositions || (serverTopology && serverTopology.positions) || {};
       let serverDeletedIps = Array.isArray(res.data.deletedIps) ? res.data.deletedIps : [];
 
-      // 1. If server database is empty, seed from local storage or DEFAULT_DEVICES immediately
-      if (serverDevices.length === 0) {
-        let fallbackDevices = [];
-        try {
-          if (localRawDevices) {
-            const parsed = JSON.parse(localRawDevices);
-            if (Array.isArray(parsed) && parsed.length > 0) fallbackDevices = parsed;
-          }
-        } catch {}
-
-        if (fallbackDevices.length === 0 && Array.isArray(DEFAULT_DEVICES)) {
-          fallbackDevices = [...DEFAULT_DEVICES];
-        }
-
-        if (fallbackDevices.length > 0) {
-          serverDevices = fallbackDevices;
-          // Immediately save to server database
-          await apiRequest('/devices', 'POST', { devices: serverDevices });
-        }
+      // 1. If server database is empty and default devices template exists, seed it
+      if (serverDevices.length === 0 && Array.isArray(DEFAULT_DEVICES) && DEFAULT_DEVICES.length > 0) {
+        serverDevices = [...DEFAULT_DEVICES];
+        await apiRequest('/devices', 'POST', { devices: serverDevices });
       } else if (localRawDevices) {
         // 2. If server has devices, merge any unique devices from this machine that are not yet on the server
         try {

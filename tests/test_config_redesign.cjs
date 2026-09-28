@@ -27,7 +27,7 @@ console.log('[1] Testing SNMP Mapper Resolution:');
 
 // Cisco Catalyst
 const ciscoTest = resolveDeviceModule({
-  ip: '192.168.111.103',
+  ip: '192.0.2.10',
   sysObjectID: '1.3.6.1.4.1.9.1.2829',
   sysDescr: 'Cisco IOS Software, Catalyst L3 Switch (CAT9K_LITE_IOSXE)',
   vendor: 'Cisco',
@@ -37,7 +37,7 @@ assert(ciscoTest === 'cisco_switch', `Cisco 9200 resolved to cisco_switch (got: 
 
 // HP / Aruba 2530
 const arubaTest = resolveDeviceModule({
-  ip: '192.168.255.110',
+  ip: '192.0.2.20',
   sysObjectID: '1.3.6.1.4.1.11.2.3.7.11.144',
   sysDescr: 'HP J9773A 2530-24G-PoE+ Switch',
   vendor: 'HP',
@@ -90,10 +90,9 @@ assert(apcTest === 'apcups', `APC UPS resolved to apcups (got: ${apcTest})`);
 // Test 2: Auth Profile Translation
 // -----------------------------------------------------------------------------
 console.log('\n[2] Testing Auth Profile Translation:');
-assert(resolveAuthProfile('seavl77') === 'seavl77_v2', `Community 'seavl77' -> 'seavl77_v2'`);
 assert(resolveAuthProfile('public') === 'public_v2', `Community 'public' -> 'public_v2'`);
 assert(resolveAuthProfile('public_v1') === 'public_v1', `Profile 'public_v1' preserved`);
-assert(resolveAuthProfile(null) === 'seavl77_v2', `Default profile fallback is 'seavl77_v2'`);
+assert(resolveAuthProfile(null) === 'public_v2', `Default profile fallback is 'public_v2'`);
 
 // -----------------------------------------------------------------------------
 // Test 3: Prometheus Target Generation
@@ -101,9 +100,9 @@ assert(resolveAuthProfile(null) === 'seavl77_v2', `Default profile fallback is '
 console.log('\n[3] Testing Target Generation (Blackbox vs SNMP Isolation):');
 
 const mockDevices = [
-  { ip: '192.168.111.103', name: 'SW-CORE-C9200', vendor: 'Cisco', model: 'C9200L', community: 'seavl77' },
-  { ip: '192.168.255.110', name: 'SW-ACC-HP2530', vendor: 'HP', model: '2530-24G', community: 'seavl77' },
-  { ip: '192.168.10.15', name: 'SW-RUCKUS', vendor: 'Ruckus', community: 'public' }
+  { ip: '192.0.2.10', name: 'SW-CORE-C9200', vendor: 'Cisco', model: 'C9200L', community: 'public' },
+  { ip: '192.0.2.20', name: 'SW-ACC-HP2530', vendor: 'HP', model: '2530-24G', community: 'public' },
+  { ip: '192.0.2.30', name: 'SW-RUCKUS', vendor: 'Ruckus', community: 'public_v1' }
 ];
 
 // Test target generation logic directly from server/server.js implementation
@@ -125,15 +124,15 @@ function generateTargetsTest(activeDevices) {
 
 const { blackboxYaml, snmpYaml } = generateTargetsTest(mockDevices);
 
-assert(blackboxYaml.includes('192.168.111.103') && blackboxYaml.includes('192.168.255.110'), 'Blackbox targets contains device IPs');
+assert(blackboxYaml.includes('192.0.2.10') && blackboxYaml.includes('192.0.2.20'), 'Blackbox targets contains device IPs');
 assert(blackboxYaml.includes("module: 'icmp'"), 'Blackbox targets specify strictly ICMP module');
-assert(!blackboxYaml.includes("cisco_switch") && !blackboxYaml.includes("seavl77_v2"), 'Blackbox targets contain no SNMP parameters');
+assert(!blackboxYaml.includes("cisco_switch") && !blackboxYaml.includes("public_v2"), 'Blackbox targets contain no SNMP parameters');
 
 assert(snmpYaml.includes("module: 'cisco_switch'"), 'SNMP targets correctly label Cisco with cisco_switch');
 assert(snmpYaml.includes("module: 'aruba_switch'"), 'SNMP targets correctly label HP with aruba_switch');
 assert(snmpYaml.includes("module: 'if_mib'"), 'SNMP targets correctly fallback Ruckus to if_mib');
-assert(snmpYaml.includes("auth: 'seavl77_v2'"), 'SNMP targets use auth profile seavl77_v2 instead of plaintext string');
-assert(!snmpYaml.includes("auth: 'seavl77'\n"), 'Plaintext community string is not exposed in auth label');
+assert(snmpYaml.includes("auth: 'public_v2'"), 'SNMP targets use auth profile public_v2 instead of plaintext string');
+assert(!snmpYaml.includes("auth: 'public'\n"), 'Plaintext community string is not exposed in auth label');
 
 // -----------------------------------------------------------------------------
 // Test 4: Prometheus Configuration File Analysis

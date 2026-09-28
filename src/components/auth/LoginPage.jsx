@@ -30,7 +30,7 @@ export function LoginPage() {
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
   const [suggestEmergency, setSuggestEmergency] = useState(false);
 
-  const grafanaServerUrl = settings.grafanaUrl || 'http://192.168.109.147:3000';
+  const grafanaServerUrl = settings.grafanaUrl || (typeof window !== 'undefined' ? `http://${window.location.hostname}:3000` : 'http://localhost:3000');
 
   const handleSubmit = async (e) => {
     e.preventDefault();

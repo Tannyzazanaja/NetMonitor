@@ -90,14 +90,14 @@ scrape_configs:
         target_label: __param_module
         replacement: if_mib
 
-      # Step C: Auth Profile -> __param_auth (with safe fallback to seavl77_v2)
+      # Step C: Auth Profile -> __param_auth (with safe fallback to public_v2)
       - source_labels: [auth]
         regex: '(.+)'
         target_label: __param_auth
       - source_labels: [__param_auth]
         regex: '^$'
         target_label: __param_auth
-        replacement: seavl77_v2
+        replacement: public_v2
 
       # Step D: Instance Label -> clean IP (consistent with Blackbox & UI)
       - source_labels: [__param_target]

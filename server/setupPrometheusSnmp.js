@@ -96,11 +96,11 @@ function runSetup() {
 
       let content = fs.readFileSync(snmpTarget, 'utf8');
 
-      // A: Ensure seavl77_v2 auth profile exists
-      if (!content.includes('seavl77_v2:')) {
-        log('Adding seavl77_v2 auth profile to snmp.yml...');
+      // A: Ensure standard auth profiles exist (public_v2)
+      if (!content.includes('public_v2:')) {
+        log('Adding public_v2 auth profile to snmp.yml...');
         if (content.includes('auths:')) {
-          content = content.replace('auths:\n', 'auths:\n  seavl77_v2:\n    community: seavl77\n    version: 2\n');
+          content = content.replace('auths:\n', 'auths:\n  public_v2:\n    community: public\n    version: 2\n');
         }
       }
 
@@ -124,7 +124,7 @@ function runSetup() {
     } else {
       // If snmp.yml does not exist at all, create it with baseline auths + modules
       log('Creating baseline /etc/prometheus/snmp.yml with auths and optimized modules...');
-      const baseline = `auths:\n  public_v1:\n    community: public\n    version: 1\n  public_v2:\n    community: public\n    version: 2\n  seavl77_v2:\n    community: seavl77\n    version: 2\n\n` + modContent;
+      const baseline = `auths:\n  public_v1:\n    community: public\n    version: 1\n  public_v2:\n    community: public\n    version: 2\n\n` + modContent;
       fs.writeFileSync(snmpTarget, baseline, 'utf8');
       log(`Created ${snmpTarget} successfully.`);
     }

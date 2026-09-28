@@ -46,15 +46,19 @@ function getDefaultData() {
   return {
     devices,
     settings: {
-      prometheusUrl: 'http://192.168.109.147:9090',
-      grafanaUrl: 'http://192.168.109.147:3000',
+      prometheusUrl: 'http://localhost:9090',
+      grafanaUrl: 'http://localhost:3000',
       snmpJob: 'snmp',
-      blackboxJob: 'blackbox_icmp',
+      blackboxJob: 'blackbox-icmp',
       refreshInterval: 10,
-      orgName: 'SEAVL ENTERPRISE NETWORK',
+      orgName: 'Enterprise Network Monitoring Platform',
       wanInterface: 'GigabitEthernet0/0/0',
-      defaultCommunity: 'seavl77',
+      defaultCommunity: 'public',
       defaultModule: 'if_mib',
+      defaultDiscoveryCidr: '192.168.1.0/24',
+      emergencyUsername: 'emergency',
+      emergencyPassword: 'emergency@netmon',
+      isConfigured: false,
       lineChannelToken: '',
       lineTargetId: '',
     },
@@ -162,7 +166,7 @@ function validateSettings(inputSettings) {
   if (inputSettings.prometheusUrl !== undefined) {
     const val = String(inputSettings.prometheusUrl).trim();
     if (!/^https?:\/\/.+/i.test(val)) {
-      errors.push('prometheusUrl must be a valid HTTP or HTTPS URL (e.g. http://192.168.109.147:9090)');
+      errors.push('prometheusUrl must be a valid HTTP or HTTPS URL (e.g. http://localhost:9090)');
     } else {
       cleanSettings.prometheusUrl = val.replace(/\/+$/, '');
     }
@@ -215,7 +219,17 @@ function validateSettings(inputSettings) {
   // orgName: organization display name
   if (inputSettings.orgName !== undefined) {
     const val = String(inputSettings.orgName).trim();
-    cleanSettings.orgName = val || 'SEAVL ENTERPRISE NETWORK';
+    cleanSettings.orgName = val || 'Enterprise Network Monitoring Platform';
+  }
+
+  // defaultDiscoveryCidr: default CIDR subnet for network discovery
+  if (inputSettings.defaultDiscoveryCidr !== undefined) {
+    cleanSettings.defaultDiscoveryCidr = String(inputSettings.defaultDiscoveryCidr).trim() || '192.168.1.0/24';
+  }
+
+  // isConfigured: system initialization flag
+  if (inputSettings.isConfigured !== undefined) {
+    cleanSettings.isConfigured = Boolean(inputSettings.isConfigured);
   }
 
   // lineChannelToken: sensitive token or empty
@@ -622,7 +636,7 @@ async function sendLineNotification(token, targetId, alert, isRecovery = false) 
   const icon = isRecovery 
     ? '🟢' 
     : (alert.severity === 'critical' ? '🔴' : (alert.severity === 'warning' ? '🟡' : '🔵'));
-  const org = (readDb().settings?.orgName || 'SEAVL ENTERPRISE NETWORK').trim();
+  const org = (readDb().settings?.orgName || 'Enterprise Network Monitoring Platform').trim();
   const message = `${icon} [${org}]: ${alert.title || alert.name}\n📍 Device: ${alert.deviceName ? `${alert.deviceName} (${alert.deviceIp || alert.instance})` : (alert.deviceIp || alert.instance)}\n📝 Detail: ${alert.message || alert.description}\n🕒 Time: ${new Date().toLocaleTimeString('th-TH')}`;
 
   try {
@@ -1218,7 +1232,7 @@ async function pollPerf() {
 
   try {
     const db = readDb();
-    const defaultCommunity = db.settings?.defaultCommunity || 'seavl77';
+    const defaultCommunity = db.settings?.defaultCommunity || 'public';
     const devices = (db.devices || []).filter(d => !db.deletedIps?.includes(d.ip));
 
     const now = Date.now();
@@ -1535,6 +1549,88 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   
   const pathname = url.pathname.replace(/\/+$/, '') || '/';
+
+  // 0. Setup Wizard Endpoints (Accessible before auth for initial onboarding)
+  if (pathname === '/api/setup/status' && req.method === 'GET') {
+    const db = readDb();
+    const isConfigured = Boolean(db.settings && db.settings.isConfigured === true);
+    return sendJson(res, 200, {
+      success: true,
+      isConfigured,
+      settings: {
+        orgName: db.settings?.orgName || 'Enterprise Network Monitoring Platform',
+        prometheusUrl: db.settings?.prometheusUrl || 'http://localhost:9090',
+        grafanaUrl: db.settings?.grafanaUrl || 'http://localhost:3000',
+        defaultCommunity: db.settings?.defaultCommunity || 'public',
+        defaultDiscoveryCidr: db.settings?.defaultDiscoveryCidr || '192.168.1.0/24',
+        emergencyUsername: db.settings?.emergencyUsername || 'emergency',
+      }
+    });
+  }
+
+  if (pathname === '/api/setup/complete' && req.method === 'POST') {
+    try {
+      const db = readDb();
+      const isAlreadyConfigured = Boolean(db.settings && db.settings.isConfigured === true);
+      const session = getSession(req);
+
+      if (isAlreadyConfigured && (!session || session.role !== 'Admin')) {
+        return sendJson(res, 403, { success: false, error: 'System is already configured' });
+      }
+
+      const body = await parseBody(req);
+      const newOrgName = (body.orgName || 'Enterprise Network Monitoring Platform').trim();
+      const newPromUrl = (body.prometheusUrl || 'http://localhost:9090').trim().replace(/\/+$/, '');
+      const newGrafanaUrl = (body.grafanaUrl || 'http://localhost:3000').trim().replace(/\/+$/, '');
+      const newCommunity = (body.defaultCommunity || 'public').trim();
+      const newCidr = (body.defaultDiscoveryCidr || '192.168.1.0/24').trim();
+      const adminPass = body.adminPassword ? String(body.adminPassword).trim() : '';
+
+      db.settings = {
+        ...db.settings,
+        orgName: newOrgName,
+        prometheusUrl: newPromUrl,
+        grafanaUrl: newGrafanaUrl,
+        defaultCommunity: newCommunity,
+        defaultDiscoveryCidr: newCidr,
+        isConfigured: true,
+      };
+
+      if (adminPass && adminPass.length >= 6) {
+        db.settings.emergencyPassword = adminPass;
+      }
+      if (body.adminUsername) {
+        db.settings.emergencyUsername = String(body.adminUsername).trim();
+      }
+
+      writeDb(db);
+      console.log(`[Server] First-run setup completed for organization '${newOrgName}'`);
+
+      const adminUser = body.adminUsername || 'admin';
+      const token = crypto.randomBytes(32).toString('hex');
+      sessions.set(token, {
+        username: adminUser,
+        name: 'Administrator',
+        role: 'Admin',
+        isEmergency: true,
+        expires: Date.now() + SESSION_EXPIRY
+      });
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Set-Cookie': `nm_session=${token}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax`,
+      });
+      return res.end(JSON.stringify({
+        success: true,
+        message: 'Platform initialized successfully',
+        user: { username: adminUser, role: 'Admin', name: 'Administrator' },
+        settings: db.settings
+      }));
+    } catch (err) {
+      console.error('[Server] Setup complete error:', err);
+      return sendJson(res, 500, { success: false, error: err.message });
+    }
+  }
 
   // 1. Auth Endpoints
   if (pathname === '/api/auth/login' && req.method === 'POST') {
@@ -2041,7 +2137,7 @@ const server = http.createServer(async (req, res) => {
           const db = readDb();
           const d = (db.devices || []).find(dev => dev.ip === targetIp);
           if (d) {
-            const defaultCommunity = db.settings?.defaultCommunity || 'seavl77';
+            const defaultCommunity = db.settings?.defaultCommunity || 'public';
             try {
               perf = await queryDevicePerformance(targetIp, d.community || defaultCommunity);
               if (perf) devicePerfCache[targetIp] = perf;
@@ -2085,7 +2181,7 @@ const server = http.createServer(async (req, res) => {
           return sendJson(res, 400, { ok: false, error: 'ipRange is required' });
         }
         const db = readDb();
-        const defaultCommunity = db.settings?.defaultCommunity || 'seavl77';
+        const defaultCommunity = db.settings?.defaultCommunity || 'public';
         const defaultModule = db.settings?.defaultModule || 'if_mib';
         const community = (body.community && body.community !== '***') ? body.community : defaultCommunity;
         
@@ -2118,7 +2214,7 @@ const server = http.createServer(async (req, res) => {
           (db.devices || []).forEach(d => {
             if (d && d.ip) existingCommunityMap.set(d.ip, d.community);
           });
-          const defaultCommunity = db.settings?.defaultCommunity || 'seavl77';
+          const defaultCommunity = db.settings?.defaultCommunity || 'public';
 
           const mergedDevices = body.devices.map(d => {
             let comm = d.community;
@@ -2194,7 +2290,7 @@ const server = http.createServer(async (req, res) => {
           (db.devices || []).forEach(d => {
             if (d && d.ip) existingCommunityMap.set(d.ip, d.community);
           });
-          const defaultCommunity = db.settings?.defaultCommunity || 'seavl77';
+          const defaultCommunity = db.settings?.defaultCommunity || 'public';
 
           db.devices = incomingDevices.map(d => {
             let comm = d.community;

@@ -1,11 +1,11 @@
 param (
-    [string]$ServerHost = "192.168.109.147",
+    [string]$ServerHost = "YOUR_SERVER_IP",
     [string]$ServerUser = "root",
     [string]$RemoteDir = "/var/www/netmonitor-react/dist"
 )
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "SEAVL NetMonitor React Edition - Production Single-Click Deploy" -ForegroundColor Cyan
+Write-Host "NetMonitor Platform - Production Single-Click Deploy" -ForegroundColor Cyan
 Write-Host "Target: $ServerUser@$ServerHost -> Single Backend Port: 5001" -ForegroundColor Yellow
 Write-Host "==========================================================" -ForegroundColor Cyan
 
@@ -93,7 +93,7 @@ rm -f /etc/nginx/conf.d/netmonitor-react.conf 2>/dev/null || true
 cat << 'EOF' > /etc/nginx/conf.d/netmonitor.conf
 server {
     listen 80;
-    server_name _ netmonitor.local netmonitor.seavl.local netmonitor;
+    server_name _ localhost netmonitor.local;
 
     root /var/www/netmonitor-react/dist;
     index index.html;
@@ -240,5 +240,4 @@ Write-Host "DEPLOYMENT SUCCESSFUL - SINGLE SOURCE OF TRUTH ACTIVE!" -ForegroundC
 Write-Host "Access URLs:" -ForegroundColor Cyan
 Write-Host "  👉 http://${ServerHost}" -ForegroundColor Yellow
 Write-Host "  👉 http://netmonitor.local" -ForegroundColor Yellow
-Write-Host "  👉 http://netmonitor.seavl.local" -ForegroundColor Yellow
 Write-Host "==========================================================" -ForegroundColor Green

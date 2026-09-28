@@ -369,7 +369,7 @@ export function DeviceProvider({ children }) {
       category: ['switch', 'coreswitch', 'distswitch', 'firewall', 'router', 'ap'].includes(deviceInput.type || profile.type)
         ? 'network' : (deviceInput.type === 'server' ? 'server' : 'endpoint'),
       location: deviceInput.location || '',
-      community: deviceInput.community || 'seavl77',
+      community: deviceInput.community || 'public',
       module: deviceInput.module || 'if_mib',
       vendor: deviceInput.vendor || profile.vendor,
       model: deviceInput.model || profile.model || deviceInput.os || '',
@@ -429,7 +429,7 @@ export function DeviceProvider({ children }) {
         category: ['switch', 'coreswitch', 'distswitch', 'firewall', 'router', 'ap'].includes(deviceInput.type || profile.type)
           ? 'network' : (deviceInput.type === 'server' ? 'server' : 'endpoint'),
         location: deviceInput.location || '',
-        community: deviceInput.community || 'seavl77',
+        community: deviceInput.community || 'public',
         module: deviceInput.module || 'if_mib',
         vendor: deviceInput.vendor || profile.vendor,
         model: deviceInput.model || profile.model || deviceInput.os || '',

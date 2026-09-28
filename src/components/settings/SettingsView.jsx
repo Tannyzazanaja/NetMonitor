@@ -221,13 +221,13 @@ export function SettingsView() {
             type="text"
             value={formData.prometheusUrl || ''}
             onChange={(e) => handleChange('prometheusUrl', e.target.value)}
-            placeholder="http://192.168.109.147:9090"
+            placeholder="http://localhost:9090"
             className="form-input"
             style={{ fontFamily: 'var(--font-mono)' }}
             required
           />
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            ต่อตรงไปยัง Prometheus API Server (เช่น <code>http://192.168.109.147:9090</code>)
+            ต่อตรงไปยัง Prometheus API Server (เช่น <code>http://localhost:9090</code>)
           </div>
         </div>
 
@@ -237,12 +237,12 @@ export function SettingsView() {
             type="text"
             value={formData.grafanaUrl || ''}
             onChange={(e) => handleChange('grafanaUrl', e.target.value)}
-            placeholder="http://192.168.109.147:3000"
+            placeholder="http://localhost:3000"
             className="form-input"
             style={{ fontFamily: 'var(--font-mono)' }}
           />
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            URL ของ Grafana Server ที่เปิดใช้งาน Iframe Embedding (เช่น <code>http://192.168.109.147:3000</code>)
+            URL ของ Grafana Server ที่เปิดใช้งาน Iframe Embedding (เช่น <code>http://localhost:3000</code>)
           </div>
         </div>
 
@@ -323,6 +323,21 @@ export function SettingsView() {
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
               ควบคุมรอบการดึง Telemetry และ Polling บน Frontend & Backend (3 - 120s)
             </div>
+          </div>
+        </div>
+
+        <div className="input-group">
+          <label className="input-label">Default Discovery Subnet / CIDR</label>
+          <input
+            type="text"
+            value={formData.defaultDiscoveryCidr || ''}
+            onChange={(e) => handleChange('defaultDiscoveryCidr', e.target.value)}
+            placeholder="192.168.1.0/24"
+            className="form-input"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          />
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+            Subnet เริ่มต้นสำหรับระบบค้นหาอุปกรณ์อัตโนมัติ (Auto-Discovery Scanner)
           </div>
         </div>
 

@@ -8,7 +8,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/grafana-auth': {
-        target: 'http://192.168.109.147:3000',
+        target: process.env.GRAFANA_URL || 'http://localhost:3000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/grafana-auth/, ''),
       },

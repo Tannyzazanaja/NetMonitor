@@ -410,13 +410,13 @@ export function GrafanaView() {
                 type="text"
                 value={customUrl}
                 onChange={(e) => setCustomUrl(e.target.value)}
-                placeholder="http://192.168.109.147:3000"
+                placeholder="http://localhost:3000"
                 className="form-input"
                 style={{ fontFamily: 'var(--font-mono)' }}
                 required
               />
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                ระบุ URL ของ Grafana Server ที่รันอยู่บน Proxmox LXC หรือเครื่องเซิร์ฟเวอร์
+                ระบุ URL ของ Grafana Server ที่รันอยู่บนเซิร์ฟเวอร์
               </div>
             </div>
 
@@ -433,7 +433,7 @@ export function GrafanaView() {
               <div style={{ fontWeight: 700, color: 'var(--primary)', marginBottom: 4 }}>
                 💡 ข้อแนะนำการเชื่อมต่อ
               </div>
-              หาก Grafana รันอยู่บนเครื่องเดียวกันกับ Prometheus (CT100) สามารถใช้ค่าเริ่มต้น <code>http://192.168.109.147:3000</code> ได้ทันที
+              หาก Grafana รันอยู่บนเครื่องเดียวกันกับ Prometheus สามารถใช้ค่าเริ่มต้น <code>http://localhost:3000</code> ได้ทันที
             </div>
           </div>
 
@@ -471,7 +471,7 @@ export function GrafanaView() {
           <div>
             <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
               <Terminal size={15} color="var(--amber)" />
-              <span>ขั้นตอนที่ 1: ติดตั้ง Grafana บน Ubuntu LXC (192.168.109.147)</span>
+              <span>ขั้นตอนที่ 1: ติดตั้ง Grafana Server</span>
             </div>
             <div style={{ background: '#090d16', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontFamily: 'var(--font-mono)', fontSize: 11, position: 'relative' }}>
               <pre style={{ margin: 0, color: '#38bdf8' }}>
@@ -530,7 +530,7 @@ sudo systemctl restart grafana-server`}
             <div style={{ fontWeight: 700, color: 'var(--amber)', marginBottom: 4 }}>
               ขั้นตอนที่ 3: แอด Prometheus Data Source ใน Grafana
             </div>
-            เปิดเบราว์เซอร์ไปที่ <code>http://192.168.109.147:3000</code> &gt; ไปที่ <strong>Connections &gt; Data Sources &gt; Add Prometheus</strong> &gt; ใส่ URL เป็น <code>http://localhost:9090</code> แล้วกด <strong>Save &amp; Test</strong>
+            เปิดเบราว์เซอร์ไปที่ Grafana Server (เช่น <code>http://localhost:3000</code>) &gt; ไปที่ <strong>Connections &gt; Data Sources &gt; Add Prometheus</strong> &gt; ใส่ URL เป็น <code>http://localhost:9090</code> แล้วกด <strong>Save &amp; Test</strong>
           </div>
         </div>
 

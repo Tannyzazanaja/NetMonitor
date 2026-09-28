@@ -5,34 +5,34 @@
 # SNMP Exporter behavior without creating separate, duplicated Prometheus jobs.
 #
 # Notice:
-# 1. 'auth' uses authorized snmp.yml profile name (e.g. seavl77_v2), NOT plaintext community
+# 1. 'auth' uses authorized snmp.yml profile name (e.g. public_v2), NOT plaintext community
 # 2. 'module' designates exact vendor MIB module verified in snmp.yml
 # =============================================================================
 
 # Device 1: Cisco Catalyst Switch
 - targets:
-    - '192.168.111.103'
+    - '192.0.2.1'
   labels:
     job: 'snmp'
-    target: '192.168.111.103'
+    target: '192.0.2.1'
     module: 'cisco_switch'     # Optimized Cisco MIB (Interfaces + LLDP/CDP + CPU + Memory)
-    auth: 'seavl77_v2'         # Auth profile from snmp.yml (seavl77 community)
-    name: 'HR-SW02'
-    type: 'switch'
+    auth: 'public_v2'          # Auth profile from snmp.yml (public community)
+    name: 'DC-CORE-01'
+    type: 'coreswitch'
     vendor: 'Cisco'
-    model: 'Catalyst-9200L'
-    location: 'HR-Building'
+    model: 'Catalyst-9300'
+    location: 'Main-DC-Rack01'
 
 # Device 2: Aruba / HPE 2530 Switch
 - targets:
-    - '192.168.255.110'
+    - '192.0.2.10'
   labels:
     job: 'snmp'
-    target: '192.168.255.110'
+    target: '192.0.2.10'
     module: 'aruba_switch'     # Optimized HP/Aruba MIB (Interfaces + LLDP + CPU + Memory)
-    auth: 'seavl77_v2'         # Auth profile from snmp.yml (seavl77 community)
-    name: 'U1-SW-HPE2530-NW'
-    type: 'switch'
+    auth: 'public_v2'          # Auth profile from snmp.yml (public community)
+    name: 'BLDG1-DIST-01'
+    type: 'distswitch'
     vendor: 'HPE'
     model: '2530-48G'
-    location: 'Newwave-Cabinet'
+    location: 'Building1-IDF'
