@@ -22,6 +22,8 @@ const VALID_SNMP_MODULES = [
 const VALID_AUTH_PROFILES = [
   'public_v2',      // SNMPv2c with community: public
   'public_v1',      // SNMPv1 with community: public
+  'seavl77_v2',     // Production switch community
+  'auth_seavl77_v2',// Alias for backward compatibility
 ];
 
 // Community string to Auth Profile translation map
@@ -29,6 +31,9 @@ const COMMUNITY_TO_AUTH_MAP = {
   'public': 'public_v2',
   'public_v2': 'public_v2',
   'public_v1': 'public_v1',
+  'seavl77': 'seavl77_v2',
+  'seavl77_v2': 'seavl77_v2',
+  'auth_seavl77_v2': 'seavl77_v2',
 };
 
 // Vendor to SNMP Exporter module mapping
@@ -59,7 +64,7 @@ const VENDOR_TO_MODULE_MAP = {
  * Resolves the appropriate SNMP Exporter module for a device.
  * Enforces that only existing, verified module names from snmp.yml are returned.
  */
-function resolveDeviceModule(dev = {}) {
+function resolveDeviceModule(dev = {}, defaultModule = 'if_mib') {
   const explicitMod = (dev.module || '').trim();
 
   // If already an explicitly configured valid module, use it
@@ -71,6 +76,7 @@ function resolveDeviceModule(dev = {}) {
   if (explicitMod && VENDOR_TO_MODULE_MAP[explicitMod.toLowerCase()]) {
     return VENDOR_TO_MODULE_MAP[explicitMod.toLowerCase()];
   }
+
 
   // Check sysObjectID prefix if present
   const sysObjId = (dev.sysObjectID || dev.sysObjId || '').trim();
@@ -120,7 +126,7 @@ function resolveDeviceModule(dev = {}) {
   }
 
   // Default universal safe fallback (Interfaces + LLDP + CDP)
-  return 'if_mib';
+  return defaultModule || 'if_mib';
 }
 
 /**
@@ -132,13 +138,32 @@ function resolveAuthProfile(communityOrAuth, defaultProfile = 'public_v2') {
     return defaultProfile;
   }
   const clean = communityOrAuth.trim();
-  if (VALID_AUTH_PROFILES.includes(clean)) {
-    return clean;
+  if (clean === '***') {
+    return defaultProfile;
+  }
+  if (clean.toLowerCase() === 'public' || clean === 'public_v2') {
+    return 'public_v2';
+  }
+  if (clean === 'public_v1') {
+    return 'public_v1';
   }
   if (COMMUNITY_TO_AUTH_MAP[clean.toLowerCase()]) {
     return COMMUNITY_TO_AUTH_MAP[clean.toLowerCase()];
   }
-  return defaultProfile;
+  if (COMMUNITY_TO_AUTH_MAP[clean]) {
+    return COMMUNITY_TO_AUTH_MAP[clean];
+  }
+  // Strip redundant auth_ prefix if present
+  const stripped = clean.replace(/^auth_/, '');
+  if (COMMUNITY_TO_AUTH_MAP[stripped.toLowerCase()]) {
+    return COMMUNITY_TO_AUTH_MAP[stripped.toLowerCase()];
+  }
+  if (VALID_AUTH_PROFILES.includes(stripped)) {
+    return stripped;
+  }
+  // Generate deterministic safe auth profile identifier: "${safeName}_v2" (matches public_v2, seavl77_v2)
+  const safeName = stripped.replace(/_v\d+$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `${safeName}_v2`;
 }
 
 module.exports = {

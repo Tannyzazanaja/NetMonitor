@@ -4,18 +4,30 @@
  */
 
 export class PrometheusClient {
-  constructor(baseUrl = `http://${window.location.hostname}:9090`) {
-    this.baseUrl = baseUrl.replace(/\/+$/, '');
+  constructor(baseUrl = '/api/prometheus') {
+    this.baseUrl = (baseUrl || '').replace(/\/+$/, '');
   }
 
   setBaseUrl(url) {
     this.baseUrl = (url || '').replace(/\/+$/, '');
   }
 
-  async instantQuery(query, time = null) {
-    if (!this.baseUrl || !query) return [];
+  getEffectiveBaseUrl() {
+    if (typeof window !== 'undefined') {
+      // In browser environment, direct calls to :9090 violate CORS because Prometheus does not emit CORS headers.
+      // Transparently route all browser calls through the /api/prometheus reverse proxy.
+      if (!this.baseUrl || this.baseUrl.includes(':9090') || this.baseUrl.includes('localhost') || this.baseUrl.includes('127.0.0.1')) {
+        return '/api/prometheus';
+      }
+    }
+    return this.baseUrl || '/api/prometheus';
+  }
 
-    let url = `${this.baseUrl}/api/v1/query?query=${encodeURIComponent(query)}`;
+  async instantQuery(query, time = null) {
+    if (!query) return [];
+
+    const effectiveBase = this.getEffectiveBaseUrl();
+    let url = `${effectiveBase}/api/v1/query?query=${encodeURIComponent(query)}`;
     if (time) url += `&time=${time}`;
 
     try {
@@ -25,15 +37,30 @@ export class PrometheusClient {
       if (data.status !== 'success') throw new Error(data.error || 'Query failed');
       return data.data?.result || [];
     } catch (err) {
-      console.warn(`[Prometheus] Direct query error (${query}):`, err.message);
+      // If direct query failed and not already using /api/prometheus, try /api/prometheus fallback
+      if (effectiveBase !== '/api/prometheus' && typeof window !== 'undefined') {
+        try {
+          const fallbackUrl = `/api/prometheus/api/v1/query?query=${encodeURIComponent(query)}${time ? `&time=${time}` : ''}`;
+          const fRes = await fetch(fallbackUrl, { signal: AbortSignal.timeout(6000) });
+          if (fRes.ok) {
+            const fData = await fRes.json();
+            if (fData.status === 'success') {
+              this.baseUrl = '/api/prometheus';
+              return fData.data?.result || [];
+            }
+          }
+        } catch {}
+      }
+      console.warn(`[Prometheus] Query error (${query}):`, err.message);
       return [];
     }
   }
 
   async rangeQuery(query, start, end, step = '15s') {
-    if (!this.baseUrl || !query) return [];
+    if (!query) return [];
 
-    const url = `${this.baseUrl}/api/v1/query_range?query=${encodeURIComponent(query)}&start=${start}&end=${end}&step=${step}`;
+    const effectiveBase = this.getEffectiveBaseUrl();
+    const url = `${effectiveBase}/api/v1/query_range?query=${encodeURIComponent(query)}&start=${start}&end=${end}&step=${step}`;
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -41,38 +68,77 @@ export class PrometheusClient {
       if (data.status !== 'success') throw new Error(data.error || 'Range query failed');
       return data.data?.result || [];
     } catch (err) {
-      console.warn(`[Prometheus] Direct range query error:`, err.message);
+      if (effectiveBase !== '/api/prometheus' && typeof window !== 'undefined') {
+        try {
+          const fallbackUrl = `/api/prometheus/api/v1/query_range?query=${encodeURIComponent(query)}&start=${start}&end=${end}&step=${step}`;
+          const fRes = await fetch(fallbackUrl, { signal: AbortSignal.timeout(8000) });
+          if (fRes.ok) {
+            const fData = await fRes.json();
+            if (fData.status === 'success') {
+              this.baseUrl = '/api/prometheus';
+              return fData.data?.result || [];
+            }
+          }
+        } catch {}
+      }
+      console.warn(`[Prometheus] Range query error:`, err.message);
       return [];
     }
   }
 
   async getTargets() {
-    if (!this.baseUrl) return [];
+    const effectiveBase = this.getEffectiveBaseUrl();
     try {
-      const res = await fetch(`${this.baseUrl}/api/v1/targets`, { signal: AbortSignal.timeout(6000) });
-      if (!res.ok) return [];
+      const res = await fetch(`${effectiveBase}/api/v1/targets`, { signal: AbortSignal.timeout(6000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.status === 'success') {
         return data.data?.activeTargets || [];
       }
       return [];
     } catch (err) {
+      if (effectiveBase !== '/api/prometheus' && typeof window !== 'undefined') {
+        try {
+          const fRes = await fetch(`/api/prometheus/api/v1/targets`, { signal: AbortSignal.timeout(6000) });
+          if (fRes.ok) {
+            const fData = await fRes.json();
+            if (fData.status === 'success') {
+              this.baseUrl = '/api/prometheus';
+              return fData.data?.activeTargets || [];
+            }
+          }
+        } catch {}
+      }
       console.warn('[Prometheus] Fetch targets error:', err.message);
       return [];
     }
   }
 
   async testConnection() {
+    const effectiveBase = this.getEffectiveBaseUrl();
     try {
-      const res = await fetch(`${this.baseUrl}/api/v1/query?query=up`, { signal: AbortSignal.timeout(4000) });
-      if (!res.ok) return { ok: false, message: `HTTP ${res.status} ${res.statusText}` };
+      const res = await fetch(`${effectiveBase}/api/v1/query?query=up`, { signal: AbortSignal.timeout(4000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
       const data = await res.json();
       if (data.status === 'success') {
         const count = data.data?.result?.length || 0;
-        return { ok: true, count, message: `Connected to Prometheus 9090! (${count} targets reporting)` };
+        return { ok: true, count, message: `Connected to Prometheus! (${count} targets reporting)` };
       }
       return { ok: false, message: data.error || 'Unknown error' };
     } catch (err) {
+      if (effectiveBase !== '/api/prometheus' && typeof window !== 'undefined') {
+        try {
+          const fRes = await fetch(`/api/prometheus/api/v1/query?query=up`, { signal: AbortSignal.timeout(4000) });
+          if (fRes.ok) {
+            const fData = await fRes.json();
+            if (fData.status === 'success') {
+              this.baseUrl = '/api/prometheus';
+              const count = fData.data?.result?.length || 0;
+              return { ok: true, count, message: `Connected via proxy to Prometheus! (${count} targets reporting)` };
+            }
+          }
+        } catch {}
+      }
       return { ok: false, message: err.message };
     }
   }
@@ -329,9 +395,7 @@ export function normalizeIp(str) {
   return String(str).replace(/:\d+$/, '').trim();
 }
 
-export const defaultPromClient = new PrometheusClient(
-  typeof window !== 'undefined' ? `http://${window.location.hostname}:9090` : 'http://localhost:9090'
-);
+export const defaultPromClient = new PrometheusClient('/api/prometheus');
 
 /**
  * Builds a robust PromQL query for WAN / Gateway / Uplink traffic.

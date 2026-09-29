@@ -83,15 +83,15 @@ export function AuthProvider({ children }) {
     }
   }, [showToast]);
 
-  if (isInitializing) {
-    return <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)' }}>Loading session...</div>;
-  }
-
   const refreshSession = useCallback(async () => {
     const u = await AuthService.fetchSession();
     setUser(u);
     return u;
   }, []);
+
+  if (isInitializing) {
+    return <div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)' }}>Loading session...</div>;
+  }
 
   return (
     <AuthContext.Provider

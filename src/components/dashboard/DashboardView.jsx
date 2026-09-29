@@ -225,85 +225,124 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
 
   // Query live Prometheus traffic data and per-device traffic via Server-Sent Events (SSE)
   useEffect(() => {
-    // Connect to Backend SSE Stream (Proxied to backend)
-    const eventSource = new EventSource('/api/storage/stream/traffic');
+    let es = null;
+    let retryDelay = 1000;
+    let reconnectTimer = null;
+    let isMounted = true;
 
-    eventSource.onmessage = (event) => {
+    function connectSSE() {
+      if (!isMounted) return;
       try {
-        const data = JSON.parse(event.data);
-        const { resIn, resOut, resDevIn, resDevOut } = data;
+        es = new EventSource('/api/storage/stream/traffic');
 
-        const inValues = resIn?.[0]?.values || [];
-        const outValues = resOut?.[0]?.values || [];
+        es.onopen = () => {
+          retryDelay = 1000;
+        };
 
-        if (inValues.length > 0 || outValues.length > 0) {
-          const baseValues = inValues.length > 0 ? inValues : outValues;
-          const outMap = new Map((outValues || []).map(o => [o[0], parseFloat(o[1])]));
-          const inMap = new Map((inValues || []).map(i => [i[0], parseFloat(i[1])]));
+        es.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            const { resIn, resOut, resDevIn, resDevOut } = data;
 
-          const times = [];
-          const inData = [];
-          const outData = [];
-          
-          baseValues.slice(-30).forEach(point => {
-            const timestamp = point[0];
-            const valIn = inMap.has(timestamp) ? inMap.get(timestamp) : parseFloat(point[1] || 0);
-            const valOut = outMap.has(timestamp) ? outMap.get(timestamp) : 0;
-            
-            times.push(new Date(timestamp * 1000).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-            inData.push(parseFloat((valIn || 0).toFixed(2)));
-            outData.push(parseFloat((valOut || 0).toFixed(2)));
-          });
-          
-          if (times.length > 0) {
-            setChartHistory({ labels: times, inData, outData });
-            
-            const actualIn = inData[inData.length - 1] || 0;
-            const actualOut = outData[outData.length - 1] || 0;
-            
-            setTrafficStats((prev) => ({
-              currentIn: actualIn,
-              currentOut: actualOut,
-              peakIn: Math.max(prev.peakIn || 0, actualIn),
-              peakOut: Math.max(prev.peakOut || 0, actualOut),
-              totalBandwidth: parseFloat((actualIn + actualOut).toFixed(2)),
-            }));
+            const inValues = resIn?.[0]?.values || [];
+            const outValues = resOut?.[0]?.values || [];
+
+            if (inValues.length > 0 || outValues.length > 0) {
+              const baseValues = inValues.length > 0 ? inValues : outValues;
+              const outMap = new Map((outValues || []).map(o => [o[0], parseFloat(o[1])]));
+              const inMap = new Map((inValues || []).map(i => [i[0], parseFloat(i[1])]));
+
+              const times = [];
+              const inData = [];
+              const outData = [];
+              
+              baseValues.slice(-30).forEach(point => {
+                const timestamp = point[0];
+                const valIn = inMap.has(timestamp) ? inMap.get(timestamp) : parseFloat(point[1] || 0);
+                const valOut = outMap.has(timestamp) ? outMap.get(timestamp) : 0;
+                
+                times.push(new Date(timestamp * 1000).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+                inData.push(parseFloat((valIn || 0).toFixed(2)));
+                outData.push(parseFloat((valOut || 0).toFixed(2)));
+              });
+              
+              if (times.length > 0) {
+                setChartHistory({ labels: times, inData, outData });
+                
+                const actualIn = inData[inData.length - 1] || 0;
+                const actualOut = outData[outData.length - 1] || 0;
+                
+                setTrafficStats((prev) => ({
+                  currentIn: actualIn,
+                  currentOut: actualOut,
+                  peakIn: Math.max(prev.peakIn || 0, actualIn),
+                  peakOut: Math.max(prev.peakOut || 0, actualOut),
+                  totalBandwidth: parseFloat((actualIn + actualOut).toFixed(2)),
+                }));
+              }
+            }
+
+            // Parse per-device rates
+            const devMap = {};
+            if (Array.isArray(resDevIn)) {
+              resDevIn.forEach((item) => {
+                const inst = (item.metric?.instance || '').replace(/:\d+$/, '');
+                const val = parseFloat(item.value?.[1] || 0);
+                if (inst && !isNaN(val) && val > 0) {
+                  devMap[inst] = devMap[inst] || { inMbps: 0, outMbps: 0 };
+                  devMap[inst].inMbps = parseFloat(val.toFixed(2));
+                }
+              });
+            }
+            if (Array.isArray(resDevOut)) {
+              resDevOut.forEach((item) => {
+                const inst = (item.metric?.instance || '').replace(/:\d+$/, '');
+                const val = parseFloat(item.value?.[1] || 0);
+                if (inst && !isNaN(val) && val > 0) {
+                  devMap[inst] = devMap[inst] || { inMbps: 0, outMbps: 0 };
+                  devMap[inst].outMbps = parseFloat(val.toFixed(2));
+                }
+              });
+            }
+            setDeviceTrafficMap(devMap);
+          } catch (err) {
+            console.warn('[DashboardView] SSE Parse error:', err);
           }
-        }
+        };
 
-        // Parse per-device rates
-        const devMap = {};
-        if (Array.isArray(resDevIn)) {
-          resDevIn.forEach((item) => {
-            const inst = (item.metric?.instance || '').replace(/:\d+$/, '');
-            const val = parseFloat(item.value?.[1] || 0);
-            if (inst && !isNaN(val) && val > 0) {
-              devMap[inst] = devMap[inst] || { inMbps: 0, outMbps: 0 };
-              devMap[inst].inMbps = parseFloat(val.toFixed(2));
-            }
-          });
-        }
-        if (Array.isArray(resDevOut)) {
-          resDevOut.forEach((item) => {
-            const inst = (item.metric?.instance || '').replace(/:\d+$/, '');
-            const val = parseFloat(item.value?.[1] || 0);
-            if (inst && !isNaN(val) && val > 0) {
-              devMap[inst] = devMap[inst] || { inMbps: 0, outMbps: 0 };
-              devMap[inst].outMbps = parseFloat(val.toFixed(2));
-            }
-          });
-        }
-        setDeviceTrafficMap(devMap);
+        es.onerror = () => {
+          if (es) {
+            es.close();
+            es = null;
+          }
+          if (isMounted && !reconnectTimer) {
+            const delay = retryDelay;
+            retryDelay = Math.min(retryDelay * 2, 30000);
+            reconnectTimer = setTimeout(() => {
+              reconnectTimer = null;
+              connectSSE();
+            }, delay);
+          }
+        };
       } catch (err) {
-        console.warn('SSE Parse error:', err);
+        if (isMounted && !reconnectTimer) {
+          const delay = retryDelay;
+          retryDelay = Math.min(retryDelay * 2, 30000);
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            connectSSE();
+          }, delay);
+        }
       }
-    };
+    }
 
-    eventSource.onerror = (err) => {
-      console.warn('SSE Connection error:', err);
-    };
+    connectSSE();
 
-    return () => eventSource.close();
+    return () => {
+      isMounted = false;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (es) es.close();
+    };
   }, []);
   const switchCount = devices.filter(d => d.isCore || d.isNetwork || (d.type || '').includes('switch') || (d.category || '') === 'network' || (d.name || '').includes('-sw') || (d.name || '').toLowerCase().includes('switch')).length;
   const onlineCount = devices.filter(d => d.status === 'online').length;

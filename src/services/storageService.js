@@ -14,8 +14,8 @@ const STORAGE_KEYS = {
 };
 
 export const DEFAULT_SETTINGS = {
-  prometheusUrl: `http://${window.location.hostname}:9090`,
-  grafanaUrl: `http://${window.location.hostname}:3000`,
+  prometheusUrl: '/api/prometheus',
+  grafanaUrl: typeof window !== 'undefined' ? `http://${window.location.hostname}:3000` : 'http://localhost:3000',
   refreshInterval: 10, // seconds
   orgName: 'Enterprise Network Monitoring Platform',
   wanInterface: 'GigabitEthernet0/0/0',
@@ -143,8 +143,8 @@ export const StorageService = {
       if (!raw) return { ...DEFAULT_SETTINGS };
       const parsed = JSON.parse(raw);
       let pUrl = parsed.prometheusUrl || parsed.proxyUrl || DEFAULT_SETTINGS.prometheusUrl;
-      if (pUrl.includes(':9091')) {
-        pUrl = pUrl.replace(':9091', ':9090');
+      if (pUrl.includes(':9091') || pUrl.includes(':9090')) {
+        pUrl = '/api/prometheus';
       }
       return { ...DEFAULT_SETTINGS, ...parsed, prometheusUrl: pUrl };
     } catch {

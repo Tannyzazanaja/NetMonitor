@@ -63,9 +63,14 @@ export function TopologyProvider({ children }) {
   const [layoutMode, setLayoutMode] = useState('hierarchical'); // 'hierarchical' | 'force' | 'radar' | 'free' | 'grid'
   const [persistedPositions, setPersistedPositions] = useState(() => StorageService.getTopologyPositions());
   const [persistedTopology, setPersistedTopology] = useState(() => StorageService.getTopology());
+  const persistedTopologyRef = useRef(persistedTopology);
+  useEffect(() => {
+    persistedTopologyRef.current = persistedTopology;
+  }, [persistedTopology]);
+
   const [selectedNode, setSelectedNode] = useState(null);
   const [neighborModalNode, setNeighborModalNode] = useState(null);
-  const [rawLinks, setRawLinks] = useState([]);
+  const [rawLinks, setRawLinks] = useState(() => StorageService.getTopology()?.edges || []);
   const [sysNameMap, setSysNameMap] = useState({});
   const [targetCatalog, setTargetCatalog] = useState([]);
   const [macMap, setMacMap] = useState(() => new Map());
@@ -91,8 +96,23 @@ export function TopologyProvider({ children }) {
   // Query CDP, LLDP, ARP, and MAC data from Prometheus
   const refreshTopology = useCallback(async () => {
     const currentDevices = devicesRef.current;
-    if (!promClient || currentDevices.length === 0) {
+    if (currentDevices.length === 0) {
       setRawLinks([]);
+      return;
+    }
+
+    if (!promClient) {
+      try {
+        const res = await fetch('/api/topology/discover');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.edges) && data.edges.length > 0) {
+            setRawLinks(data.edges);
+            return;
+          }
+        }
+      } catch {}
+      setRawLinks(prev => prev.length > 0 ? prev : (persistedTopologyRef.current?.edges || []));
       return;
     }
 
@@ -230,7 +250,24 @@ export function TopologyProvider({ children }) {
         ...discoveryPayload,
       });
 
-      setRawLinks(links);
+      if (links && links.length > 0) {
+        setRawLinks(links);
+      } else {
+        // Fallback to backend Direct SNMP crawler if Prometheus SNMP exporter has no LLDP/CDP MIBs
+        try {
+          const res = await fetch('/api/topology/discover');
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.edges) && data.edges.length > 0) {
+              setRawLinks(data.edges);
+              return;
+            }
+          }
+        } catch (crawlErr) {
+          console.warn('[TopologyContext] Backend crawl fetch error:', crawlErr);
+        }
+        setRawLinks(prev => prev.length > 0 ? prev : (persistedTopologyRef.current?.edges || []));
+      }
     } catch (e) {
       console.warn('[TopologyContext] Link refresh error:', e);
     } finally {
@@ -302,6 +339,9 @@ export function TopologyProvider({ children }) {
           }
           if (data.topology) {
             setPersistedTopology(data.topology);
+            if (Array.isArray(data.topology.edges) && data.topology.edges.length > 0) {
+              setRawLinks(prev => prev.length === 0 ? data.topology.edges : prev);
+            }
           }
         }
       } catch (e) {
@@ -347,7 +387,7 @@ export function TopologyProvider({ children }) {
         return matched && matched !== d.ip ? { ...d, originalIp: d.ip, ip: matched } : d;
       });
 
-      const pipelineResult = await executeTopologyDiscoveryPipeline({
+      let pipelineResult = await executeTopologyDiscoveryPipeline({
         devices: mappedDevices,
         promClient,
         targetCatalog,
@@ -357,6 +397,39 @@ export function TopologyProvider({ children }) {
         rawDiscoveryData,
         existingEdges: rawLinks,
       });
+
+      // If Prometheus SNMP exporter returned 0 links, query backend Direct SNMP Crawler
+      if (!pipelineResult || pipelineResult.edges.length === 0) {
+        try {
+          const res = await fetch('/api/topology/discover', { method: 'POST' });
+          if (res.ok) {
+            const d = await res.json();
+            if (Array.isArray(d.edges) && d.edges.length > 0) {
+              const nodes = calculateHierarchy(mappedDevices, d.edges);
+              pipelineResult = {
+                nodes,
+                edges: d.edges,
+                newEdgesCount: d.edges.length,
+                existingEdgesCount: 0,
+                stats: {
+                  totalEdges: d.edges.length,
+                  byProtocol: {
+                    LLDP: d.edges.filter(e => (e.protocol || '').includes('LLDP')).length,
+                    CDP: d.edges.filter(e => (e.protocol || '').includes('CDP')).length,
+                    Other: d.edges.filter(e => !(e.protocol || '').includes('LLDP') && !(e.protocol || '').includes('CDP')).length,
+                  },
+                  byType: { Discovered: d.edges.length },
+                  avgConfidence: 100,
+                  highConfidenceRatio: 1,
+                },
+                durationMs: 40,
+              };
+            }
+          }
+        } catch (crawlErr) {
+          console.warn('[TopologyContext] Direct SNMP crawl fallback failed:', crawlErr);
+        }
+      }
 
       setDiscoveryPreview(pipelineResult);
       setIsDiscoveryModalOpen(true);

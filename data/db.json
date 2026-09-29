@@ -7,7 +7,7 @@
     "blackboxJob": "blackbox-icmp",
     "refreshInterval": 10,
     "orgName": "Enterprise Network Monitoring Platform",
-    "wanInterface": "GigabitEthernet0/0/0",
+    "wanInterface": "auto",
     "defaultCommunity": "public",
     "defaultModule": "if_mib",
     "defaultDiscoveryCidr": "192.168.1.0/24",
@@ -17,7 +17,7 @@
   },
   "topologyPositions": {},
   "deletedIps": [],
-  "updatedAt": "2026-09-28T09:29:07.735Z",
+  "updatedAt": "2026-09-29T02:20:25.308Z",
   "topology": {
     "nodes": [],
     "edges": [],

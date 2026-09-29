@@ -1,5 +1,5 @@
 param (
-    [string]$ServerHost = "YOUR_SERVER_IP",
+    [string]$ServerHost = "192.168.109.147",
     [string]$ServerUser = "root",
     [string]$RemoteDir = "/var/www/netmonitor-react/dist"
 )
@@ -64,7 +64,12 @@ echo "3. Executing Prometheus & SNMP Exporter Setup..."
 node setupPrometheusSnmp.js
 
 chown -R www-data:www-data /var/www/netmonitor-react
-chmod -R 775 /etc/prometheus/targets
+chmod -R 777 /etc/prometheus/targets /etc/prometheus/backup 2>/dev/null || true
+chmod 666 /etc/prometheus/snmp.yml 2>/dev/null || true
+systemctl restart snmp_exporter 2>/dev/null || systemctl restart prometheus-snmp-exporter 2>/dev/null || pkill -HUP -f snmp_exporter 2>/dev/null || true
+curl -s -X POST http://localhost:9116/-/reload 2>/dev/null || true
+systemctl restart prometheus 2>/dev/null || systemctl reload prometheus 2>/dev/null || true
+curl -s -X POST http://localhost:9090/-/reload 2>/dev/null || true
 
 echo "4. Managing PM2 process (Service: netmonitor-backend, Port: 5001)..."
 # Release legacy ports (5000, 5002) and previous PM2 services if present
@@ -175,10 +180,23 @@ fi
 
 echo "7. Reloading Nginx, SNMP Exporter, and Prometheus..."
 systemctl reload nginx || systemctl restart nginx
-systemctl restart prometheus-snmp-exporter 2>/dev/null || systemctl restart snmp_exporter 2>/dev/null || curl -X POST http://localhost:9116/-/reload 2>/dev/null || true
-systemctl restart prometheus 2>/dev/null || systemctl reload prometheus 2>/dev/null || curl -X POST http://localhost:9090/-/reload 2>/dev/null || true
+mkdir -p /etc/snmp_exporter
+cp -f /etc/prometheus/snmp.yml /etc/snmp_exporter/snmp.yml 2>/dev/null || true
+pkill -HUP -f snmp_exporter 2>/dev/null || true
+systemctl restart snmp_exporter 2>/dev/null || systemctl restart prometheus-snmp-exporter 2>/dev/null || systemctl restart snmp-exporter 2>/dev/null || true
+curl -s -X POST http://localhost:9116/-/reload 2>/dev/null || true
+systemctl restart prometheus 2>/dev/null || systemctl reload prometheus 2>/dev/null || true
+curl -s -X POST http://localhost:9090/-/reload 2>/dev/null || true
 systemctl start prometheus 2>/dev/null || true
 systemctl enable prometheus 2>/dev/null || true
+
+echo "--- SNMP Configuration & Probe Diagnostics ---"
+head -n 25 /etc/prometheus/snmp.yml 2>/dev/null || true
+echo "Probe test (seavl77_v2):"
+curl -s -i "http://127.0.0.1:9116/snmp?auth=seavl77_v2&module=if_mib&target=192.168.255.32" 2>&1 | head -n 12 || true
+echo "Probe test (public_v2):"
+curl -s -i "http://127.0.0.1:9116/snmp?auth=public_v2&module=if_mib&target=127.0.0.1" 2>&1 | head -n 8 || true
+echo "-----------------------------------------------"
 
 echo "8. Running Automated Health Checks (Requirement 16)..."
 HEALTH_OK=0

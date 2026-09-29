@@ -138,9 +138,10 @@ export function AlertProvider({ children }) {
     }
   }, [handleIncomingAlerts]);
 
-  // ── Stream Alerts via SSE with Auto-Reconnect ───────────────
+  // ── Stream Alerts via SSE with Auto-Reconnect (Exponential Backoff) ────────
   useEffect(() => {
     let es = null;
+    let retryDelay = 1000;
     let reconnectTimer = null;
     let isMounted = true;
 
@@ -148,6 +149,10 @@ export function AlertProvider({ children }) {
       if (!isMounted) return;
       try {
         es = new EventSource('/api/storage/stream/alerts');
+
+        es.onopen = () => {
+          retryDelay = 1000;
+        };
 
         es.onmessage = (event) => {
           try {
@@ -166,18 +171,22 @@ export function AlertProvider({ children }) {
             es = null;
           }
           if (isMounted && !reconnectTimer) {
+            const delay = retryDelay;
+            retryDelay = Math.min(retryDelay * 2, 30000);
             reconnectTimer = setTimeout(() => {
               reconnectTimer = null;
               connectSSE();
-            }, 3000);
+            }, delay);
           }
         };
       } catch (err) {
         if (isMounted && !reconnectTimer) {
+          const delay = retryDelay;
+          retryDelay = Math.min(retryDelay * 2, 30000);
           reconnectTimer = setTimeout(() => {
             reconnectTimer = null;
             connectSSE();
-          }, 3000);
+          }, delay);
         }
       }
     }

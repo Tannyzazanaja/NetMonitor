@@ -63,23 +63,31 @@ export function findMatchingPromInstance(targetIp, allInstances = []) {
  * Excludes virtual, loopback, VLAN, internal stack, and virtual NICs
  */
 export function isPhysicalPort(portStr) {
-  if (!portStr) return false;
+  if (!portStr) return true; // If port not explicitly specified, do not discard valid link
   const s = String(portStr).trim().toLowerCase();
 
   // 1. Strictly exclude virtual / software / VLAN / internal interfaces
-  if (/^(vlan|null|loopback|stack|cpu|control|span|internal|virtual|tun|mgmt|bluetooth|mgmteth|unrouted)/i.test(s) ||
-      /\b(vlan|null|loopback|stacksub|controlplane|virtual|mgmteth|unknown)\b/i.test(s)) {
+  if (/^(vlan|null|loopback|stack|cpu|control|span|internal|virtual|tun|mgmt|management|bluetooth|mgmteth|unrouted|dummy|bond|bridge)/i.test(s) ||
+      /\b(vlan|null|loopback|stacksub|controlplane|virtual|mgmteth|management|unknown)\b/i.test(s)) {
     return false;
   }
 
-  // 2. Accept Physical Cisco / Juniper / HP / Huawei / Standard Switch physical port patterns:
+  // 2. Accept Physical Cisco / Juniper / HP / Aruba / Huawei / Standard Switch physical port patterns:
+  // - gi, ge, te, xe, twe, tf, fo, fge, hu, hge, fa, fe, eth, et, swp
+  // - gigabit, tengigabit, twentyfivegige, etc.
+  // - port 1, port 24, etc.
+  // - purely numeric ports: 1, 24, 48 (standard on Aruba / HP / ProCurve)
+  // - slot/port: A1, B1, 1/1, 1/A1, 1/0/1, 2/0/24
   if (/^(gi|ge|te|xe|twe|tf|fo|fge|hu|hge|fa|fe|eth|et|swp)\d/i.test(s) ||
       /^(gigabit|tengigabit|twentyfivegige|fortygigabit|hundredgige|fastethernet|ethernet)/i.test(s) ||
-      /^(port\s*\d+|\d+\/\d+(\/\d+)?)/i.test(s)) {
+      /^(port\s*\d+|\d+\/\d+(\/\d+)?)/i.test(s) ||
+      /^([a-z]?\d+|\d+\/[a-z]?\d+|\d+\/\d+\/[a-z]?\d+)$/i.test(s) ||
+      /^\d+$/.test(s)) {
     return true;
   }
 
-  return false;
+  // Default: if it didn't match virtual blacklists, allow physical link discovery
+  return true;
 }
 
 /**
@@ -171,13 +179,25 @@ export function resolveRealDeviceIp({
       };
     }
 
-    // 5. Local Registered Devices Match
+    // 5. Local Registered Devices Match (Handles FQDN, serial in parentheses, and case/dash normalization)
     const sLow = s.toLowerCase();
+    const sHostOnly = sLow.split('.')[0].replace(/\(.*?\)/g, '').trim();
     const sNorm = sLow.replace(/[-_\s]/g, '');
+    const sHostNorm = sHostOnly.replace(/[-_\s]/g, '');
+
     const localDev = devices.find(d => {
-      const dNameNorm = (d.name || '').toLowerCase().replace(/[-_\s]/g, '');
-      const dHostOnly = (d.name || '').toLowerCase().split('.')[0];
-      return d.ip === s || dNameNorm === sNorm || dHostOnly === sLow;
+      const dIp = (d.ip || '').trim();
+      const dName = (d.name || '').toLowerCase();
+      const dNameNorm = dName.replace(/[-_\s]/g, '');
+      const dHostOnly = dName.split('.')[0].replace(/\(.*?\)/g, '').trim();
+      const dHostNorm = dHostOnly.replace(/[-_\s]/g, '');
+
+      return dIp === s ||
+        dNameNorm === sNorm ||
+        dHostOnly === sHostOnly ||
+        dHostNorm === sHostNorm ||
+        dHostOnly === sLow ||
+        (dHostNorm.length >= 3 && sHostNorm.length >= 3 && (sHostNorm.includes(dHostNorm) || dHostNorm.includes(sHostNorm)));
     });
     if (localDev) {
       return {
@@ -190,9 +210,17 @@ export function resolveRealDeviceIp({
 
     // 6. Prometheus Target Catalog Exact / Normalized Match
     const byExact = targetCatalog.find(t => {
-      const tNorm = (t.name || '').toLowerCase().replace(/[-_\s]/g, '');
-      const tHost = (t.name || '').toLowerCase().split('.')[0];
-      return tNorm === sNorm || tHost === sLow;
+      const tName = (t.name || '').toLowerCase();
+      const tNorm = tName.replace(/[-_\s]/g, '');
+      const tHost = tName.split('.')[0].replace(/\(.*?\)/g, '').trim();
+      const tHostNorm = tHost.replace(/[-_\s]/g, '');
+
+      return t.ip === s ||
+        tNorm === sNorm ||
+        tHost === sHostOnly ||
+        tHostNorm === sHostNorm ||
+        tHost === sLow ||
+        (tHostNorm.length >= 3 && sHostNorm.length >= 3 && (sHostNorm.includes(tHostNorm) || tHostNorm.includes(sHostNorm)));
     });
     if (byExact) {
       return {
@@ -205,8 +233,16 @@ export function resolveRealDeviceIp({
 
     // 7. sysName Map Match
     for (const [ip, name] of Object.entries(sysNameMap)) {
-      const nNorm = (name || '').toLowerCase().replace(/[-_\s]/g, '');
-      if (nNorm === sNorm || nNorm.includes(sNorm) || sNorm.includes(nNorm)) {
+      const nLow = (name || '').toLowerCase();
+      const nNorm = nLow.replace(/[-_\s]/g, '');
+      const nHost = nLow.split('.')[0].replace(/\(.*?\)/g, '').trim();
+      const nHostNorm = nHost.replace(/[-_\s]/g, '');
+
+      if (ip === s ||
+          nNorm === sNorm ||
+          nHost === sHostOnly ||
+          nHostNorm === sHostNorm ||
+          (nHostNorm.length >= 3 && sHostNorm.length >= 3 && (sHostNorm.includes(nHostNorm) || nHostNorm.includes(sHostNorm)))) {
         return { ip, resolvedName: name, isRealIp: true, method: 'SNMP sysName Match' };
       }
     }

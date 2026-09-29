@@ -8,6 +8,18 @@ import { PerformanceModal } from '../services/PerformanceModal';
 
 const fallbackPromClient = new PrometheusClient();
 
+export function formatTrafficSpeed(mbps) {
+  if (mbps === null || mbps === undefined || isNaN(mbps)) {
+    return { val: 'No Data', unit: '', isNoData: true };
+  }
+  const val = Number(mbps);
+  if (val <= 0) return { val: '0.00', unit: 'Mbps', isNoData: false };
+  if (val >= 1000) return { val: (val / 1000).toFixed(2), unit: 'Gbps', isNoData: false };
+  if (val >= 0.1) return { val: val.toFixed(2), unit: 'Mbps', isNoData: false };
+  if (val >= 0.0001) return { val: (val * 1000).toFixed(1), unit: 'Kbps', isNoData: false };
+  return { val: (val * 1000000).toFixed(0), unit: 'bps', isNoData: false };
+}
+
 export function TrafficView() {
   const { devices } = useDevices();
   const { settings, promClient: contextPromClient } = useSettings();
@@ -42,10 +54,10 @@ export function TrafficView() {
         else if (timeRange === '1h') { queryRange = '1h'; }
 
         const [resRealtimeIn, resRealtimeOut, resHistIn, resHistOut] = await Promise.all([
-          promClient.instantQuery(`sum by (instance) (rate(ifHCInOctets[5m]) or rate(ifInOctets[5m])) * 8 / 1000000`),
-          promClient.instantQuery(`sum by (instance) (rate(ifHCOutOctets[5m]) or rate(ifOutOctets[5m])) * 8 / 1000000`),
-          promClient.instantQuery(`sum by (instance) (rate(ifHCInOctets[${queryRange}]) or rate(ifInOctets[${queryRange}])) * 8 / 1000000`),
-          promClient.instantQuery(`sum by (instance) (rate(ifHCOutOctets[${queryRange}]) or rate(ifOutOctets[${queryRange}])) * 8 / 1000000`)
+          promClient.instantQuery(`sum by (instance, target) (rate(ifHCInOctets[5m]) or rate(ifInOctets[5m])) * 8 / 1000000`),
+          promClient.instantQuery(`sum by (instance, target) (rate(ifHCOutOctets[5m]) or rate(ifOutOctets[5m])) * 8 / 1000000`),
+          promClient.instantQuery(`sum by (instance, target) (rate(ifHCInOctets[${queryRange}]) or rate(ifInOctets[${queryRange}])) * 8 / 1000000`),
+          promClient.instantQuery(`sum by (instance, target) (rate(ifHCOutOctets[${queryRange}]) or rate(ifOutOctets[${queryRange}])) * 8 / 1000000`)
         ]);
         
         if (!isMounted) return;
@@ -55,11 +67,11 @@ export function TrafficView() {
         const processReal = (res, type) => {
           if (res && res.length > 0) {
             res.forEach(item => {
-              const inst = (item.metric?.instance || '').replace(/:\d+$/, '');
+              const inst = (item.metric?.target || item.metric?.instance || '').replace(/:\d+$/, '').trim();
               const val = parseFloat(item.value?.[1] || 0);
               if (inst && !isNaN(val)) {
                 realMap[inst] = realMap[inst] || { inMbps: 0, outMbps: 0 };
-                realMap[inst][type] = val;
+                realMap[inst][type] = (realMap[inst][type] || 0) + val;
               }
             });
           }
@@ -73,11 +85,11 @@ export function TrafficView() {
         const processHist = (res, type) => {
           if (res && res.length > 0) {
             res.forEach(item => {
-              const inst = (item.metric?.instance || '').replace(/:\d+$/, '');
+              const inst = (item.metric?.target || item.metric?.instance || '').replace(/:\d+$/, '').trim();
               const val = parseFloat(item.value?.[1] || 0);
               if (inst && !isNaN(val)) {
                 histMap[inst] = histMap[inst] || { inMbps: 0, outMbps: 0 };
-                histMap[inst][type] = val;
+                histMap[inst][type] = (histMap[inst][type] || 0) + val;
               }
             });
           }
@@ -86,13 +98,14 @@ export function TrafficView() {
         processHist(resHistOut, 'outMbps');
 
         const ranked = Object.keys(histMap).map(ip => {
-          const device = devices.find(d => (d.ip || '').includes(ip));
-          const name = device?.name || ip;
+          const cleanIp = ip.trim().replace(/:\d+$/, '');
+          const device = devices.find(d => (d.ip || '').trim().replace(/:\d+$/, '') === cleanIp);
+          const name = device?.name || cleanIp;
           const data = histMap[ip];
           return {
-            ip,
+            ip: cleanIp,
             name,
-            totalMbps: data.inMbps + data.outMbps,
+            totalMbps: (data.inMbps || 0) + (data.outMbps || 0),
           };
         }).sort((a, b) => b.totalMbps - a.totalMbps).slice(0, 10);
 
@@ -187,7 +200,7 @@ export function TrafficView() {
       labels: systemTrafficIn.map(d => d.x),
       datasets: [
         {
-          label: 'WAN Gateway IN (Download) MB/s',
+          label: 'WAN Gateway IN (Download) Mbps',
           data: systemTrafficIn,
           borderColor: '#00d4ff',
           backgroundColor: 'rgba(0, 212, 255, 0.12)',
@@ -198,7 +211,7 @@ export function TrafficView() {
           borderWidth: 2
         },
         {
-          label: 'WAN Gateway OUT (Upload) MB/s',
+          label: 'WAN Gateway OUT (Upload) Mbps',
           data: systemTrafficOut,
           borderColor: '#a855f7',
           backgroundColor: 'rgba(168, 85, 247, 0.12)',
@@ -223,7 +236,12 @@ export function TrafficView() {
         bodyColor: '#fff',
         borderColor: 'rgba(0, 212, 255, 0.3)',
         borderWidth: 1,
-        callbacks: { label: (item) => ` ${item.raw.toFixed(2)} MB/s` }
+        callbacks: {
+          label: (item) => {
+            const fmt = formatTrafficSpeed(item.raw);
+            return ` ${fmt.val} ${fmt.unit}`;
+          }
+        }
       }
     },
     scales: {
@@ -246,7 +264,7 @@ export function TrafficView() {
         borderWidth: 1,
         callbacks: {
           title: (items) => items.length ? new Date(items[0].raw.x).toLocaleString('th-TH') : '',
-          label: (item) => ` ${item.dataset.label}: ${item.raw.y.toFixed(2)} MB/s`
+          label: (item) => ` ${item.dataset.label}: ${item.raw.y.toFixed(2)} Mbps`
         }
       }
     },
@@ -320,12 +338,16 @@ export function TrafficView() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(0, 212, 255, 0.1)', padding: '4px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(0, 212, 255, 0.2)' }}>
                 <ArrowDown size={14} color="var(--cyan)" />
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>IN:</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--cyan)', fontFamily: 'var(--font-mono)' }}>{currentTotalIn.toFixed(2)} MB/s</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--cyan)', fontFamily: 'var(--font-mono)' }}>
+                  {formatTrafficSpeed(currentTotalIn).val} {formatTrafficSpeed(currentTotalIn).unit}
+                </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(168, 85, 247, 0.1)', padding: '4px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
                 <ArrowUp size={14} color="#c084fc" />
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>OUT:</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#c084fc', fontFamily: 'var(--font-mono)' }}>{currentTotalOut.toFixed(2)} MB/s</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#c084fc', fontFamily: 'var(--font-mono)' }}>
+                  {formatTrafficSpeed(currentTotalOut).val} {formatTrafficSpeed(currentTotalOut).unit}
+                </span>
               </div>
             </div>
           </div>
@@ -350,7 +372,7 @@ export function TrafficView() {
           <div className="panel-header">
             <div className="panel-title">
               <ArrowUpRight size={18} color="var(--purple)" />
-              <span>Top 10 Switches (Total MB/s)</span>
+              <span>Top 10 Switches (Total Mbps)</span>
             </div>
           </div>
           <div style={{ height: 320, padding: '0 16px 16px 16px' }}>
@@ -376,9 +398,11 @@ export function TrafficView() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
         {devices.map((dev) => {
           const isOffline = dev.status !== 'online';
-          const traffic = deviceTrafficMap[dev.ip] || { inMbps: 0, outMbps: 0 };
-          const inBps = traffic.inMbps;
-          const outBps = traffic.outMbps;
+          const cleanIp = (dev.ip || '').trim().replace(/:\d+$/, '');
+          const traffic = deviceTrafficMap[cleanIp] || deviceTrafficMap[dev.ip];
+          const hasTraffic = traffic && (traffic.inMbps !== undefined || traffic.outMbps !== undefined);
+          const inFmt = hasTraffic ? formatTrafficSpeed(traffic.inMbps) : { val: 'No Data', unit: '', isNoData: true };
+          const outFmt = hasTraffic ? formatTrafficSpeed(traffic.outMbps) : { val: 'No Data', unit: '', isNoData: true };
           
           return (
             <div 
@@ -406,8 +430,8 @@ export function TrafficView() {
                   <ArrowDown size={18} color="var(--cyan)" />
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>IN (Download)</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--cyan)', fontSize: 15 }}>
-                      {inBps > 0 ? inBps.toFixed(2) : '0.00'} <span style={{fontSize: 10}}>MB/s</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: inFmt.isNoData ? 'var(--text-muted)' : 'var(--cyan)', fontSize: inFmt.isNoData ? 13 : 15 }}>
+                      {inFmt.val} {inFmt.unit && <span style={{fontSize: 10}}>{inFmt.unit}</span>}
                     </strong>
                   </div>
                 </div>
@@ -415,8 +439,8 @@ export function TrafficView() {
                   <ArrowUp size={18} color="#c084fc" />
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>OUT (Upload)</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)', color: '#c084fc', fontSize: 15 }}>
-                      {outBps > 0 ? outBps.toFixed(2) : '0.00'} <span style={{fontSize: 10}}>MB/s</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: outFmt.isNoData ? 'var(--text-muted)' : '#c084fc', fontSize: outFmt.isNoData ? 13 : 15 }}>
+                      {outFmt.val} {outFmt.unit && <span style={{fontSize: 10}}>{outFmt.unit}</span>}
                     </strong>
                   </div>
                 </div>

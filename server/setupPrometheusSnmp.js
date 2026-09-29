@@ -79,6 +79,7 @@ function runSetup() {
   // 3. Configure SNMP Exporter (snmp.yml)
   const snmpSourceCandidates = [
     '/tmp/snmp_optimized_modules.yml',
+    path.resolve(__dirname, '../config/snmp_exporter/snmp_optimized_modules.yml'),
     path.resolve(__dirname, '../config/snmp_optimized_modules.yml'),
     path.resolve(__dirname, 'snmp_optimized_modules.yml')
   ];
@@ -96,12 +97,63 @@ function runSetup() {
 
       let content = fs.readFileSync(snmpTarget, 'utf8');
 
-      // A: Ensure standard auth profiles exist (public_v2)
+      // Ensure auths: block exists
+      if (!content.includes('auths:')) {
+        content = 'auths:\n' + content;
+      }
+
+      // Ensure baseline public_v2 and public_v1 exist
       if (!content.includes('public_v2:')) {
         log('Adding public_v2 auth profile to snmp.yml...');
-        if (content.includes('auths:')) {
-          content = content.replace('auths:\n', 'auths:\n  public_v2:\n    community: public\n    version: 2\n');
+        content = content.replace(/auths:\r?\n/, match => `${match}  public_v2:\n    community: public\n    version: 2\n`);
+      }
+      if (!content.includes('public_v1:')) {
+        log('Adding public_v1 auth profile to snmp.yml...');
+        content = content.replace(/auths:\r?\n/, match => `${match}  public_v1:\n    community: public\n    version: 1\n`);
+      }
+
+      // Read DB files to inject custom community auth profiles (including production seavl77)
+      try {
+        const dbCandidates = [
+          path.resolve(__dirname, '../data/db.json'),
+          path.resolve(__dirname, 'data/db.json'),
+          '/var/www/netmonitor-react/data/db.json',
+          '/var/www/netmonitor-react/server/data/db.json',
+          '/app/data/db.json',
+        ];
+        const comms = new Set();
+        // Always include default 'public' and production 'seavl77'
+        comms.add('public');
+        comms.add('seavl77');
+        for (const p of dbCandidates) {
+          if (fs.existsSync(p)) {
+            try {
+              const db = JSON.parse(fs.readFileSync(p, 'utf8'));
+              if (db.settings?.defaultCommunity && db.settings.defaultCommunity !== '***') {
+                comms.add(db.settings.defaultCommunity.trim());
+              }
+              if (Array.isArray(db.devices)) {
+                db.devices.forEach(d => {
+                  if (d && d.community && d.community !== '***') comms.add(d.community.trim());
+                });
+              }
+            } catch {}
+          }
         }
+        for (const comm of comms) {
+          if (comm === 'public') continue;
+          const safe = comm.replace(/[^a-zA-Z0-9_-]/g, '_');
+          const profiles = [`auth_${safe}_v2`, `${safe}_v2`];
+          for (const prof of profiles) {
+            if (!content.includes(`${prof}:`)) {
+              const authSnippet = `  ${prof}:\n    community: ${comm}\n    version: 2\n`;
+              content = content.replace(/auths:\r?\n/, match => `${match}${authSnippet}`);
+              log(`Adding ${prof} auth profile for community '${comm}' to snmp.yml...`);
+            }
+          }
+        }
+      } catch (dbErr) {
+        warn(`Could not inspect db.json for custom communities: ${dbErr.message}`);
       }
 
       // B: Append cisco_switch and aruba_switch modules if not present
@@ -115,18 +167,27 @@ function runSetup() {
         } else {
           content = content.trimEnd() + '\n\nmodules:\n' + modOnlyLines;
         }
-
-        fs.writeFileSync(snmpTarget, content, 'utf8');
-        log('Successfully merged optimized modules into /etc/prometheus/snmp.yml');
       } else {
         log('cisco_switch module is already present in /etc/prometheus/snmp.yml (skipping duplicate append)');
       }
+
+      // ALWAYS write the updated file to both candidate locations!
+      fs.writeFileSync(snmpTarget, content, 'utf8');
+      try {
+        if (!fs.existsSync('/etc/snmp_exporter')) fs.mkdirSync('/etc/snmp_exporter', { recursive: true });
+        fs.writeFileSync('/etc/snmp_exporter/snmp.yml', content, 'utf8');
+      } catch {}
+      log('Successfully saved /etc/prometheus/snmp.yml and /etc/snmp_exporter/snmp.yml with auth profiles and optimized modules');
     } else {
       // If snmp.yml does not exist at all, create it with baseline auths + modules
       log('Creating baseline /etc/prometheus/snmp.yml with auths and optimized modules...');
-      const baseline = `auths:\n  public_v1:\n    community: public\n    version: 1\n  public_v2:\n    community: public\n    version: 2\n\n` + modContent;
+      const baseline = `auths:\n  public_v1:\n    community: public\n    version: 1\n  public_v2:\n    community: public\n    version: 2\n  seavl77_v2:\n    community: seavl77\n    version: 2\n  auth_seavl77_v2:\n    community: seavl77\n    version: 2\n\n` + modContent;
       fs.writeFileSync(snmpTarget, baseline, 'utf8');
-      log(`Created ${snmpTarget} successfully.`);
+      try {
+        if (!fs.existsSync('/etc/snmp_exporter')) fs.mkdirSync('/etc/snmp_exporter', { recursive: true });
+        fs.writeFileSync('/etc/snmp_exporter/snmp.yml', baseline, 'utf8');
+      } catch {}
+      log(`Created ${snmpTarget} and /etc/snmp_exporter/snmp.yml successfully.`);
     }
   } else {
     warn('Optimized SNMP modules source not found, skipping snmp.yml update.');
@@ -141,8 +202,11 @@ function runSetup() {
 
   // 5. Restart services to apply new modules immediately
   try {
-    execSync('systemctl restart prometheus-snmp-exporter 2>/dev/null || systemctl restart snmp_exporter 2>/dev/null || true', { stdio: 'pipe' });
-    execSync('systemctl restart prometheus 2>/dev/null || true', { stdio: 'pipe' });
+    execSync('pkill -HUP -f snmp_exporter 2>/dev/null || true', { stdio: 'pipe' });
+    execSync('systemctl restart snmp_exporter 2>/dev/null || systemctl restart prometheus-snmp-exporter 2>/dev/null || systemctl restart snmp-exporter 2>/dev/null || true', { stdio: 'pipe' });
+    execSync('curl -s -X POST http://localhost:9116/-/reload 2>/dev/null || true', { stdio: 'pipe' });
+    execSync('systemctl restart prometheus 2>/dev/null || systemctl reload prometheus 2>/dev/null || true', { stdio: 'pipe' });
+    execSync('curl -s -X POST http://localhost:9090/-/reload 2>/dev/null || true', { stdio: 'pipe' });
     log('Restarted Prometheus and SNMP Exporter services.');
   } catch {}
 

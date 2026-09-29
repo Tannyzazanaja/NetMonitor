@@ -1,5 +1,7 @@
 # NetMonitor: Enterprise Network Observability & Management Platform
 
+[English](README.md) | [ภาษาไทย](README.th.md)
+
 [![Node.js](https://img.shields.io/badge/Node.js-18.x%20%7C%2020.x-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-18.2-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-5.x-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
