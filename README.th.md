@@ -28,6 +28,7 @@
 | เอกสารคู่มือ | รายละเอียดเนื้อหา | กลุ่มผู้ใช้งาน |
 |---|---|---|
 | 🚀 [**คู่มือการติดตั้ง (DEPLOYMENT_GUIDE)**](DEPLOYMENT_GUIDE.th.md) ([EN](DEPLOYMENT_GUIDE.md)) | ขั้นตอนติดตั้งแบบ Turn-key, ตารางคำนวณสเปกฮาร์ดแวร์ (Sizing Matrix), การตั้งค่า SSL/TLS Certificate และแนวทางสำรองข้อมูล | วิศวกรเครือข่ายและระบบ (SysAdmin / NetAdmin) |
+| 🏗️ [**คู่มือติดตั้ง Infrastructure (INFRA_INSTALLATION_GUIDE)**](INFRA_INSTALLATION_GUIDE.th.md) ([EN](INFRA_INSTALLATION_GUIDE.md)) | ขั้นตอนติดตั้งและปรับแต่ง Prometheus, SNMP Exporter, Blackbox Exporter และ Grafana ทั้งแบบ Docker และ Linux Native Systemd | วิศวกรโครงสร้างพื้นฐานและ DevOps |
 | ⚙️ [**คู่มือการกำหนดค่า (CONFIG_REFERENCE.md)**](CONFIG_REFERENCE.md) | ตารางตัวแปรใน `.env`, โครงสร้าง JSON ของอุปกรณ์, รูปแบบ Target YAML ของ Prometheus และ PromQL Catalog | สถาปัตย์ระบบและ DevOps Engineer |
 | 🛠️ [**คู่มือการแก้ไขปัญหา (TROUBLESHOOTING)**](TROUBLESHOOTING.th.md) ([EN](TROUBLESHOOTING.md)) | วิธีวิเคราะห์และแก้ไขปัญหาจริง: SNMP Timeout (HTTP 500), 400 Bad Request, ปัญหา Permission Docker, พอร์ตชนกัน | ทีมปฏิบัติการและศูนย์ NOC |
 | 👤 [**คู่มือผู้ดูแลระบบ (ADMIN_GUIDE.md)**](ADMIN_GUIDE.md) | การบริหารจัดการผู้ใช้งาน, สิทธิ์ RBAC, การตั้งค่าแจ้งเตือนผ่าน LINE Messaging API และบัญชีฉุกเฉิน | ผู้ดูแลระบบไอที (IT Administrator) |

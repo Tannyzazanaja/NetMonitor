@@ -77,6 +77,9 @@
    ```
 2. สคริปต์จะตรวจสอบระบบ ติดตั้ง และแสดง URL สำหรับเข้าใช้งานแดชบอร์ดพร้อมรหัสผ่านฉุกเฉินเมื่อเสร็จสิ้น
 
+> [!NOTE]
+> หากองค์กรของท่านมีข้อกำหนดให้ติดตั้ง Prometheus, SNMP Exporter, Blackbox Exporter และ Grafana บนระบบปฏิบัติการลินุกซ์โดยตรง (Bare-Metal / VM แบบ Linux Systemd) แทนการใช้ Docker Compose สามารถศึกษาขั้นตอนอย่างละเอียดได้ที่ [**คู่มือการติดตั้ง Infrastructure**](INFRA_INSTALLATION_GUIDE.th.md) ([EN](INFRA_INSTALLATION_GUIDE.md))
+
 ---
 
 ## 4. การตั้งค่าระบบและการปรับแต่ง (`.env`)

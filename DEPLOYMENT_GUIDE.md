@@ -77,6 +77,9 @@ This guide provides step-by-step instructions for deploying, securing, and maint
    ```
 2. The script runs automated health checks and displays your live dashboard URL and credentials upon completion.
 
+> [!NOTE]
+> If your organization requires deploying Prometheus, SNMP Exporter, Blackbox Exporter, and Grafana natively as Linux systemd services (Bare-Metal / VM) instead of Docker Compose, refer to the [**Infrastructure Installation Guide**](INFRA_INSTALLATION_GUIDE.md) ([TH](INFRA_INSTALLATION_GUIDE.th.md)).
+
 ---
 
 ## 4. Configuration & Customization (`.env`)
