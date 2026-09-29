@@ -30,7 +30,7 @@
 | 🚀 [**คู่มือการติดตั้ง (DEPLOYMENT_GUIDE)**](DEPLOYMENT_GUIDE.th.md) ([EN](DEPLOYMENT_GUIDE.md)) | ขั้นตอนติดตั้งแบบ Turn-key, ตารางคำนวณสเปกฮาร์ดแวร์ (Sizing Matrix), การตั้งค่า SSL/TLS Certificate และแนวทางสำรองข้อมูล | วิศวกรเครือข่ายและระบบ (SysAdmin / NetAdmin) |
 | ⚙️ [**คู่มือการกำหนดค่า (CONFIG_REFERENCE.md)**](CONFIG_REFERENCE.md) | ตารางตัวแปรใน `.env`, โครงสร้าง JSON ของอุปกรณ์, รูปแบบ Target YAML ของ Prometheus และ PromQL Catalog | สถาปัตย์ระบบและ DevOps Engineer |
 | 🛠️ [**คู่มือการแก้ไขปัญหา (TROUBLESHOOTING)**](TROUBLESHOOTING.th.md) ([EN](TROUBLESHOOTING.md)) | วิธีวิเคราะห์และแก้ไขปัญหาจริง: SNMP Timeout (HTTP 500), 400 Bad Request, ปัญหา Permission Docker, พอร์ตชนกัน | ทีมปฏิบัติการและศูนย์ NOC |
-| 👤 [**คู่มือผู้ดูแลระบบ (ADMIN_GUIDE.md)**](ADMIN_GUIDE.md) | การบริหารจัดการผู้ใช้งาน, สิทธิ์ RBAC, การตั้งค่าแจ้งเตือน LINE / Slack / Webhook | ผู้ดูแลระบบไอที (IT Administrator) |
+| 👤 [**คู่มือผู้ดูแลระบบ (ADMIN_GUIDE.md)**](ADMIN_GUIDE.md) | การบริหารจัดการผู้ใช้งาน, สิทธิ์ RBAC, การตั้งค่าแจ้งเตือนผ่าน LINE Messaging API และบัญชีฉุกเฉิน | ผู้ดูแลระบบไอที (IT Administrator) |
 | 💻 [**คู่มือนักพัฒนา (DEVELOPER_GUIDE.md)**](DEVELOPER_GUIDE.md) | โครงสร้างโค้ดภายใน, State Machine, REST API Endpoints และการร่วมพัฒนา | นักพัฒนาซอฟต์แวร์ (Software Engineer) |
 
 ---
@@ -60,20 +60,19 @@
 
 ### 📈 แพลตฟอร์มวิเคราะห์ข้อมูลย้อนหลัง (Historical Analytics)
 * **7 โมดูลวิเคราะห์เชิงลึก:**
-  1. **Bandwidth & Traffic Throughput:** ปริมาณข้อมูลเข้า-ออก พร้อมรองรับ 64-bit HC Counter ป้องกันปัญหา Counter Overflow บนพอร์ต 10G/40G/100G
-  2. **CPU Utilization:** ติดตามการทำงานของ CPU แยก Core และ Control/Data Plane
-  3. **Memory Consumption:** อัตราการใช้หน่วยความจำ การรั่วไหลของ Buffer และจุดสูงสุด (Peak)
-  4. **Latency & Packet Loss:** สถิติ Round-Trip Time (RTT) และอัตราการสูญเสียแพ็กเก็ต
-  5. **Interface Errors & Discards:** ตรวจจับ CRC Errors, Frame Drops และปัญหาทางกายภาพของสายสัญญาณ
-  6. **Optical Power & Transceivers:** ตรวจวัดระดับสัญญาณแสง TX/RX และอุณหภูมิของโมดูล SFP/SFP+
-  7. **Port Saturation:** ตรวจจับและแจ้งเตือนพอร์ตที่มีการใช้งานเกินเกณฑ์วิกฤต (80%, 90%, 95%)
-* **ส่งออกข้อมูล CSV ได้ในคลิกเดียว:** ดาวน์โหลดสถิติย้อนหลังพร้อม Timestamp มาตรฐาน ISO 8601 สำหรับทำรายงาน
-* **ระบบแคชอัจฉริยะฝั่งเซิร์ฟเวอร์:** In-Memory Cache อายุ 5 นาที พร้อมระบบเคลียร์ TTL อัตโนมัติ ทำให้เปิดดูกราฟได้อย่างรวดเร็ว
+  1. **CPU Usage Trend (`cpu`):** อัตราการใช้งาน CPU ในรูปแบบเปอร์เซ็นต์ รองรับสวิตช์และเซิร์ฟเวอร์หลากยี่ห้อ (`hwEntityCpuUsage`, `cpmCPUTotal5minRev`, `rlCpuUtilDuringLast5Minutes`, `hpSwitchCpuStat`, `hrProcessorLoad`)
+  2. **Memory Usage Trend (`memory`):** อัตราการใช้หน่วยความจำ (Memory Pool) ในรูปแบบเปอร์เซ็นต์ ทั้ง Cisco, HP/Aruba, Huawei และ Host Resources Storage
+  3. **Bandwidth Throughput (`bandwidth`):** ปริมาณทราฟฟิกข้อมูลเข้า (Inbound), ข้อมูลออก (Outbound) และปริมาณรวม (Combined) ในหน่วย Mbps พร้อม 64-bit HC Counter และ 32-bit Fallback
+  4. **Interface Peak Utilization (`interface_util`):** เปอร์เซ็นต์การใช้งานพอร์ตสวิตช์สูงสุด เทียบกับความเร็วพอร์ตจริง (`ifHighSpeed` / `ifSpeed`)
+  5. **Latency Trend RTT (`latency`):** แนวโน้มค่าความหน่วงของเครือข่าย (Ping Latency) ในหน่วยมิลลิวินาที (ms) ผ่าน Blackbox ICMP (`probe_duration_seconds * 1000`)
+  6. **Packet Loss Trend (`packet_loss`):** อัตราการสูญหายของแพ็กเก็ต ICMP ในรูปแบบเปอร์เซ็นต์ (`(1 - probe_success) * 100`)
+  7. **Device Availability SLA (`availability`):** ค่าความพร้อมใช้งานของอุปกรณ์ตามเกณฑ์ SLA ราย 5 นาที (`avg_over_time(probe_success[5m]) * 100`)
+* **ส่งออกข้อมูลได้ทันที:** ส่งออกข้อมูลสถิติย้อนหลังเป็นไฟล์ CSV (Timestamp มาตรฐาน ISO 8601) และส่งออกภาพกราฟความละเอียดสูงเป็นไฟล์ PNG
+* **ระบบแคชอัจฉริยะ:** Client-side Cache อายุ 5 นาที พร้อมคำนวณ Step อัตโนมัติตามช่วงเวลา เพื่อการเปิดดูกราฟที่รวดเร็วระดับเสี้ยววินาที
 
 ### 🗺️ แผนผังเครือข่ายกึ่งอัตโนมัติ (Semi-Automatic Topology Discovery)
 * **รองรับ 2 โปรโตคอลหลัก:** ตรวจจับเพื่อนบ้าน (Neighbors) ผ่าน LLDP และ Cisco CDP พร้อมกัน
 * **ระบบรวมลิงก์ข้ามผู้ผลิต (Multi-Vendor Deduplication):** จัดการความสัมพันธ์ของอุปกรณ์ต่างค่ายได้อย่างแม่นยำ เช่น สวิตช์ Cisco รายงานสวิตช์ Aruba ผ่าน CDP ในขณะที่ Aruba รายงาน Cisco ผ่าน LLDP ระบบจะรวมเป็นเส้นเชื่อมเส้นเดียวที่มีความมั่นใจ 100%
-* **จำแนกประเภทลิงก์อัตโนมัติ:** แยกประเภท Trunk, Uplink, Access, Discovered และ Manual
 * **ระบบจัดวางโครงสร้าง 2 รูปแบบ:** ลำดับชั้นชัดเจน (Hierarchical Layout) และกราฟฟิสิกส์แรงดึง-แรงผลัก (Force-Directed Layout)
 * **O(1) Spatial Hash Grid Canvas:** เรนเดอร์บน HTML5 Canvas 2D ที่มีระบบคำนวณตำแหน่งแบบ Grid Indexing รองรับการเลื่อน ซูม เลือกอุปกรณ์กว่า 300 ตัวได้อย่างราบรื่น 60 FPS
 
@@ -116,8 +115,9 @@
 * **Network Isolation:** พอร์ตของ Prometheus (`9090`), SNMP Exporter (`9116`), Blackbox Exporter (`9115`), Grafana (`3000`) และ Backend (`5001`) ถูกจำกัดให้อยู่ใน Internal Docker Network หรือผูกไว้เฉพาะกับ `127.0.0.1` เท่านั้น ปิดกั้นการเข้าถึงตรงจากภายนอก
 * **Non-Root Execution:** เซิร์ฟเวอร์ Node.js รันภายใต้บัญชีระบบที่ไม่มีสิทธิ์ Root (`netmon`, UID 10001)
 * **OWASP Security Headers:** บังคับใช้ `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Strict-Transport-Security` (HSTS) และ Content Security Policy (CSP) ผ่าน Nginx
-* **Role-Based Access Control (RBAC):** แยกสิทธิ์ชัดเจนระหว่าง `Viewer` (ดูอย่างเดียว), `Editor` (จัดการอุปกรณ์) และ `Admin` (จัดการระบบเต็มรูปแบบ)
-* **Secret Masking:** ปิดบังรหัสผ่านและ Community String ด้วย `***` เสมอใน API เพื่อความปลอดภัย
+* **Role-Based Access Control (RBAC):** แยกสิทธิ์ชัดเจนระหว่าง `Viewer` (ดูอย่างเดียว), `Editor` (จัดการอุปกรณ์) และ `Admin` (จัดการระบบเต็มรูปแบบ) เชื่อมโยงผ่านฐานข้อมูลผู้ใช้ของ Grafana
+* **Emergency Break-Glass Account:** บัญชีผู้ดูแลระบบฉุกเฉินเฉพาะที่ (`EMERGENCY_USERNAME` / `EMERGENCY_PASSWORD`) สำหรับเข้าควบคุมระบบได้ทันทีแม้ระบบภายนอกขัดข้อง
+* **Secret Masking:** ปิดบังรหัสผ่าน, Token และ Community String ด้วย `***` เสมอใน API เพื่อความปลอดภัย
 
 ---
 
@@ -204,27 +204,29 @@ PROMETHEUS_RETENTION_SIZE=50GB
 
 ---
 
-## 6. ระบบค้นหาและวาดแผนผังเครือข่าย
+## 6. ระบบสแกนค้นหาและวาดแผนผังเครือข่าย (Scanner & Topology)
 
-NetMonitor มีระบบ Crawler อัตโนมัติที่แปลงตาราง Neighbor Table ของสวิตช์ให้เป็นแผนผังแบบ Interactive:
+NetMonitor แยกกลไกการค้นหาเครือข่ายออกเป็น 2 ระบบที่ทำงานร่วมกันอย่างมีประสิทธิภาพ:
 
-```mermaid
-flowchart LR
-    A["CIDR Ping Sweep<br/>(สแกน IP ในวงเครือข่าย)"] --> B["SNMP System Query<br/>(sysDescr, sysName, sysObjectID)"]
-    B --> C["Classification Engine<br/>(จำแนก Core, Dist, Access, Router, Firewall)"]
-    C --> D["Neighbor Table Sweep<br/>(ดึงข้อมูล LLDP-MIB และ CISCO-CDP-MIB)"]
-    D --> E["Multi-Vendor Deduplication<br/>(รวมเส้นเชื่อมข้ามยี่ห้อแบบ 100% Confidence)"]
-    E --> F["Layout Calculation<br/>(คำนวณตำแหน่งแบบ Hierarchical หรือ Force)"]
-    F --> G["Canvas 2D Rendering<br/>(วาดผลบน Spatial Hash Grid O(1))"]
-```
+1. **ระบบสแกน IP และค้นหาอุปกรณ์ตามวง Subnet (`/api/scan`):**
+   * สแกนชุด IP หรือวง Subnet ตามต้องการ (เช่น `192.168.1.0/24` หรือ `192.168.1.1-254`)
+   * ผสานการยิง ICMP Ping ร่วมกับคำสั่ง SNMP (`sysDescr`, `sysName`) เพื่อระบุบทบาทอุปกรณ์ (`switch`, `router`, `firewall`, `ap`, `server`) และยี่ห้อผู้ผลิต (`Cisco`, `Fortinet`, `Palo Alto`, `Aruba`, `MikroTik`, `Ubiquiti`, `Ruijie`) อัตโนมัติ
+   * กดบันทึกเพิ่มอุปกรณ์เข้าสู่ระบบได้ทันทีในคลิกเดียว
+
+2. **ระบบค้นหาความสัมพันธ์เพื่อนบ้านทาง Topology (`/api/topology/discover`):**
+   * ตรวจสอบสวิตช์ในระบบผ่าน SNMP `LLDP-MIB` (`lldpRemSysName`, `lldpRemPortId`) และ `CISCO-CDP-MIB` (`cdpCacheDeviceId`, `cdpCacheDevicePort`)
+   * ดึงชื่อพอร์ตต้นทางและปลายทาง (`ifName` / `ifDescr`)
+   * **รวมเส้นเชื่อมข้ามยี่ห้อ (Multi-Vendor Deduplication):** รวมข้อมูลที่สวิตช์สองฝั่งรายงานถึงกันให้กลายเป็นเส้นเชื่อมเส้นเดียวอย่างแม่นยำ
+   * **แสดงผลบน Canvas 2D:** เลือกจัดวางได้ทั้งแบบลำดับชั้น (Hierarchical) และแบบกราฟฟิสิกส์ (Force-Directed)
 
 ---
 
-## 7. ระบบแจ้งเตือนอัจฉริยะ
+## 7. ระบบแจ้งเตือนอัจฉริยะผ่าน LINE (Smart Alerting)
 
-* **ป้องกันแจ้งเตือนรัว (Flapping Prevention):** มีช่วงหน่วงเวลาประเมินผลเพื่อไม่ให้ส่งแจ้งเตือนซ้ำๆ เมื่อพอร์ตกระพริบ
-* **กดรับทราบปัญหาได้ทันที (One-Click Ack):** ผู้ดูแลระบบสามารถกด Acknowledge เพื่อปิดเสียงแจ้งเตือนชั่วคราวขณะกำลังแก้ไขหน้างาน
-* **รองรับหลากหลายช่องทาง:** ส่งแจ้งเตือนการ์ดสรุปปัญหาผ่าน LINE Messaging API, Slack, Discord และ Generic HTTP POST Webhook ไปยังระบบ NOC ภายนอก
+* **ประเมินสถานะสดฝั่ง Backend:** ตรวจจับอุปกรณ์หลุดจากเครือข่าย (`probe_success == 0`) และความหน่วง Latency สูงแบบ Real-Time
+* **ป้องกันแจ้งเตือนรัว (Flapping Prevention):** ระบบ Cooldown ป้องกันการส่งข้อความรบกวนเมื่อสายสัญญาณหรือพอร์ตกระพริบ
+* **กดรับทราบปัญหาได้ทันที (One-Click Ack):** ผู้ดูแลระบบกด Acknowledge เพื่อปิดเสียงแจ้งเตือนชั่วคราวขณะลงพื้นที่แก้ไข
+* **ส่งข้อความผ่าน LINE Messaging API:** ส่งการ์ดแจ้งเตือนเหตุขัดข้องและข้อความแจ้งการฟื้นตัว ([RESOLVED]) ไปยัง LINE ผ่าน `LINE_CHANNEL_ACCESS_TOKEN` และ `LINE_USER_ID` โดยตรง
 
 ---
 

@@ -136,7 +136,7 @@ PROMETHEUS_RETENTION_SIZE=50GB
 |---|---|---|---|
 | `161` | UDP | อุปกรณ์เครือข่ายทั้งหมดที่ถูกตรวจสอบ | ดึงข้อมูลสถิติ SNMP v2c/v3 Telemetry |
 | Any | ICMP (Echo Request) | อุปกรณ์เครือข่ายทั้งหมดที่ถูกตรวจสอบ | ตรวจสอบสถานะ Online/Offline และค่า Latency |
-| `443` | TCP | อินเทอร์เน็ต (api.line.me, Webhook) | ส่งข้อความแจ้งเตือนเหตุการณ์ (ไม่บังคับ) |
+| `443` | TCP | อินเทอร์เน็ต (api.line.me) | ส่งข้อความแจ้งเตือนผ่าน LINE Messaging API (ไม่บังคับ) |
 
 ---
 

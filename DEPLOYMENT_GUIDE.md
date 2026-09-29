@@ -136,7 +136,7 @@ Ensure the server hosting NetMonitor allows the following traffic:
 |---|---|---|---|
 | `161` | UDP | All Monitored Devices | SNMP v2c/v3 Telemetry Polling |
 | Any | ICMP (Echo Request) | All Monitored Devices | Blackbox Ping Latency & Up/Down |
-| `443` | TCP | Internet (api.line.me, Webhook endpoints) | Alert Notifications (Optional) |
+| `443` | TCP | Internet (api.line.me) | LINE Messaging API Push Notifications (Optional) |
 
 ---
 

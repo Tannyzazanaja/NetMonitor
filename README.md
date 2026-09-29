@@ -30,7 +30,7 @@ Designed specifically to eliminate the overhead of complex, monolithic network m
 | 🚀 [**Deployment Guide**](DEPLOYMENT_GUIDE.md) ([TH](DEPLOYMENT_GUIDE.th.md)) | Step-by-step turn-key installation, hardware sizing matrix, SSL/TLS, and disaster recovery. | System & Network Engineers |
 | ⚙️ [**Configuration Reference**](CONFIG_REFERENCE.md) | Comprehensive `.env` settings, JSON device schema, target YAML specifications, and PromQL catalog. | DevOps & Platform Architects |
 | 🛠️ [**Troubleshooting Playbook**](TROUBLESHOOTING.md) ([TH](TROUBLESHOOTING.th.md)) | Diagnostic workflows for SNMP timeouts (HTTP 500), 400 Bad Request, port conflicts, and permissions. | Operations & NOC Teams |
-| 👤 [**Administrator Guide**](ADMIN_GUIDE.md) | User management, RBAC access control, alert notification setups, and webhooks. | Security & IT Administrators |
+| 👤 [**Administrator Guide**](ADMIN_GUIDE.md) | User management, RBAC access control, LINE Messaging API notifications, and emergency credentials. | Security & IT Administrators |
 | 💻 [**Developer Guide**](DEVELOPER_GUIDE.md) | Codebase architecture, state machines, API endpoints, and contributing workflows. | Software Engineers & Developers |
 
 ---
@@ -60,15 +60,15 @@ Designed specifically to eliminate the overhead of complex, monolithic network m
 
 ### 📈 Historical Analytics Platform
 * **7 Specialized Analytics Modules:**
-  1. **Bandwidth & Traffic Throughput:** Inbound/Outbound octets with 64-bit HC counter support.
-  2. **CPU Utilization:** Historical trend tracking across multi-core control and data planes.
-  3. **Memory Consumption:** Memory pool allocation, buffer leak detection, and peak usage.
-  4. **Latency & Packet Loss:** RTT jitter analysis and packet drops.
-  5. **Interface Errors & Discards:** CRC error detection, frame drops, and physical link diagnostics.
-  6. **Optical Power & Transceivers:** SFP/SFP+ optical RX/TX levels and temperature telemetry.
-  7. **Port Saturation:** Link capacity threshold alarms (80%, 90%, 95%).
-* **Client-Side CSV Export:** One-click CSV export of historical telemetry with standard ISO 8601 timestamps for reporting.
-* **Server-Side Range Query Cache:** 5-minute memory cache with automatic TTL pruning, delivering instant analytical comparisons.
+  1. **CPU Usage Trend (`cpu`):** Multi-vendor CPU utilization percentage (`hwEntityCpuUsage`, `cpmCPUTotal5minRev`, `rlCpuUtilDuringLast5Minutes`, `hpSwitchCpuStat`, `hrProcessorLoad`).
+  2. **Memory Usage Trend (`memory`):** Memory pool utilization percentage across Cisco, HP/Aruba, Huawei, and Host Resources storage.
+  3. **Bandwidth Throughput (`bandwidth`):** Inbound, Outbound, and Combined traffic throughput (in Mbps) using 64-bit HC counters (`ifHCInOctets`/`ifHCOutOctets`) with automatic 32-bit fallback.
+  4. **Interface Peak Utilization (`interface_util`):** Peak link capacity percentage calculated from port bandwidth divided by link speed (`ifHighSpeed`/`ifSpeed`).
+  5. **Latency Trend RTT (`latency`):** Round-trip ping time in milliseconds via Prometheus Blackbox ICMP (`probe_duration_seconds * 1000`).
+  6. **Packet Loss Trend (`packet_loss`):** ICMP packet drop percentage calculated via `(1 - probe_success) * 100`.
+  7. **Device Availability SLA (`availability`):** Rolling availability percentage based on `avg_over_time(probe_success[5m]) * 100`.
+* **Export Options:** One-click CSV export with standard ISO 8601 timestamps and high-resolution PNG chart export.
+* **In-Memory Cache:** 5-minute client-side query cache with dynamic optimal step calculation for sub-second chart rendering.
 
 ### 🗺️ Semi-Automatic Topology Discovery
 * **Dual Discovery Protocols:** Concurrent LLDP and CDP neighbor discovery.
@@ -114,8 +114,9 @@ Designed specifically to eliminate the overhead of complex, monolithic network m
 ### Enterprise Security Hardening
 * **Container Isolation:** All telemetry microservices (Prometheus, SNMP Exporter, Blackbox Exporter, Grafana) are strictly bound to `127.0.0.1` or isolated within the internal Docker bridge network (`netmonitor-net`).
 * **Non-Root Execution:** Node.js backend runs under an unprivileged system user (`netmon`, UID 10001).
-* **OWASP Security Headers:** Enforces `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Strict-Transport-Security` (HSTS), and comprehensive Content Security Policy (CSP).
-* **Role-Based Access Control (RBAC):** Distinct roles for `Viewer` (read-only), `Editor`, and `Admin`.
+* **OWASP Security Headers:** Enforces `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Strict-Transport-Security` (HSTS), and Content Security Policy (CSP) via Nginx.
+* **Role-Based Access Control (RBAC):** Distinct roles for `Viewer` (read-only), `Editor`, and `Admin`, authenticated via Grafana's user directory.
+* **Emergency Break-Glass Account:** Standalone local administrator login (`EMERGENCY_USERNAME` / `EMERGENCY_PASSWORD`) for offline recovery and disaster management.
 * **Zero-Touch Secret Masking:** Passwords, tokens, and SNMP community strings are masked with `***` across all public REST endpoints.
 
 ---
@@ -203,30 +204,29 @@ Refer to [**CONFIG_REFERENCE.md**](CONFIG_REFERENCE.md) for full parameter docum
 
 ---
 
-## 6. Topology Auto-Discovery Engine
+## 6. Network Scanner & Topology Auto-Discovery
 
-NetMonitor's crawler automatically generates real-time topology maps from network neighbor tables:
+NetMonitor provides two distinct discovery mechanisms:
 
-```mermaid
-flowchart LR
-    A["CIDR Ping Sweep<br/>(e.g., 10.0.0.0/24)"] --> B["SNMP System Query<br/>(sysDescr, sysName, sysObjectID)"]
-    B --> C["Classification Engine<br/>(Core, Dist, Access, Router, Firewall)"]
-    C --> D["Neighbor Table Sweep<br/>(LLDP-MIB & CISCO-CDP-MIB)"]
-    D --> E["Multi-Vendor Deduplication<br/>(Reciprocal Edge Merging)"]
-    E --> F["Layout Calculation<br/>(Hierarchical or Force-Directed)"]
-    F --> G["Canvas 2D Rendering<br/>(Spatial Hash Grid O(1))"]
-```
+1. **Subnet IP & Device Scanner (`/api/scan`):**
+   * Sweeps user-defined IP ranges or CIDR blocks (e.g., `192.168.1.0/24` or `192.168.1.1-254`).
+   * Combines ICMP ping with SNMP queries (`sysDescr`, `sysName`) to automatically classify device roles (`switch`, `router`, `firewall`, `ap`, `server`) and vendors (`Cisco`, `Fortinet`, `Palo Alto`, `Aruba`, `MikroTik`, `Ubiquiti`, `Ruijie`).
+   * Provides one-click onboarding of discovered devices into inventory.
 
-* **Deduplication Engine:** Merges reciprocal Cisco CDP and IEEE LLDP links into single canonical links with 100% confidence.
-* **Real-Time Port Matching:** Matches remote physical ports to local interfaces and visualizes link utilization with animated packet flows.
+2. **Topology Neighbor Crawler (`/api/topology/discover`):**
+   * Concurrently queries managed switches in inventory via SNMP `LLDP-MIB` (`lldpRemSysName`, `lldpRemPortId`) and `CISCO-CDP-MIB` (`cdpCacheDeviceId`, `cdpCacheDevicePort`).
+   * Resolves remote system names and port mappings (`ifName` / `ifDescr`).
+   * **Multi-Vendor Link Deduplication:** Automatically reconciles reciprocal links between heterogeneous vendors into canonical links.
+   * **Interactive Canvas:** Renders nodes on an HTML5 Canvas 2D engine with hierarchical and force-directed layouts.
 
 ---
 
-## 7. Smart Alerting & Webhooks
+## 7. Smart Alerting & LINE Notifications
 
-* **Flapping Prevention:** Configurable evaluation windows prevent noisy alert storms during intermittent link flaps.
-* **One-Click Acknowledgement:** Operators can acknowledge firing alerts directly from the dashboard.
-* **Webhook Notifications:** Native support for LINE Messaging API cards, Slack incoming webhooks, Discord, and generic HTTP POST NOC endpoints.
+* **Real-Time Health Evaluation:** Backend continuously monitors device reachability (`probe_success`) and evaluates latency thresholds.
+* **Flapping Prevention:** Cooldown timers prevent notification storms during intermittent link flapping.
+* **One-Click Acknowledgement:** Operators can acknowledge firing alerts directly from the Web UI to mute ongoing reminders.
+* **LINE Messaging API Push Notifications:** Native integration with LINE Messaging API (`https://api.line.me/v2/bot/message/push`) using `LINE_CHANNEL_ACCESS_TOKEN` and `LINE_USER_ID`, delivering instant incident and recovery ([RESOLVED]) messages.
 
 ---
 

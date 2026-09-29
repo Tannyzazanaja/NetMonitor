@@ -56,8 +56,8 @@ NetMonitor/
 │   ├── db.json                 # Atomic JSON database (devices, settings, topology)
 │   ├── devices.template.json   # Clean generic starter templates
 │   └── targets/                # Dynamic Prometheus file_sd_configs
-│       ├── blackbox_targets.yml
-│       └── snmp_targets.yml
+│       ├── blackbox/           # Dynamic ICMP ping targets
+│       └── snmp/               # Dynamic SNMP telemetry targets
 ├── server/                     # Backend API & Orchestration Service
 │   ├── server.js               # Core HTTP server, REST routes, SSE, & alerting
 │   ├── snmpMapper.js           # Multi-vendor SNMP OID to metric translation
@@ -205,7 +205,7 @@ Updates global monitoring configuration. Preserves existing tokens if payload co
 #### `GET /api/analytics/query_range`
 Queries Prometheus time-series range metrics with dynamic step resolution and server-side 5-minute caching.
 * **Query Parameters:**
-  * `metric`: Metric key (`bandwidth_in`, `bandwidth_out`, `cpu`, `memory`, `latency`, `packet_loss`, `errors`)
+  * `metric`: Metric key (`cpu`, `memory`, `bandwidth`, `interface_util`, `latency`, `packet_loss`, `availability`)
   * `range`: Time range (`1h`, `6h`, `24h`, `7d`, `30d`, `custom`)
   * `step`: Granularity in seconds (`30`, `60`, `120`, `900`, `7200`)
   * `start` / `end`: Unix timestamps for custom ranges

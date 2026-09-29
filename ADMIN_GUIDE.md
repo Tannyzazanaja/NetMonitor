@@ -17,13 +17,10 @@ This guide is designed for Network Engineers, Systems Administrators, and Site R
    - [SNMP v3 User-Based Security (authPriv)](#snmp-v3-user-based-security-authpriv)
    - [Custom MIB Modules & OID Mapping](#custom-mib-modules--oid-mapping)
 5. [Network Auto-Discovery Operations](#5-network-auto-discovery-operations)
-   - [Configuring Discovery CIDRs](#configuring-discovery-cidrs)
-   - [Discovery Workflow: LLDP & CDP Crawling](#discovery-workflow-lldp--cdp-crawling)
-   - [Promoting Discovered Devices to Production](#promoting-discovered-devices-to-production)
-6. [Alerting & Webhook Integrations](#6-alerting--webhook-integrations)
-   - [LINE Notify & LINE Messaging API](#line-notify--line-messaging-api)
-   - [Telegram Bot Integration](#telegram-bot-integration)
-   - [Generic Webhooks (Slack, Discord, Microsoft Teams)](#generic-webhooks-slack-discord-microsoft-teams)
+   - [Subnet IP & Device Scanner (`/api/scan`)](#51-subnet-ip--device-scanner-apiscan)
+   - [Topology Neighbor Crawling (`/api/topology/discover`)](#52-topology-neighbor-crawling-apitopologydiscover)
+6. [Alerting & LINE Messaging API Integration](#6-alerting--line-messaging-api-integration)
+   - [LINE Messaging API Configuration](#line-messaging-api-configuration)
    - [Alert Lifecycle: Cooldown, Flapping & Acknowledgement](#alert-lifecycle-cooldown-flapping--acknowledgement)
 7. [Backup, Restore & Disaster Recovery](#7-backup-restore--disaster-recovery)
 8. [Maintenance, Logs & Diagnostics](#8-maintenance-logs--diagnostics)
@@ -46,11 +43,14 @@ NetMonitor enforces a strict three-tier privilege model to prevent accidental co
 | **Configure SNMP Communities & Webhooks** | ❌ | ❌ | ✅ |
 | **Manage Users & Emergency Passwords** | ❌ | ❌ | ✅ |
 
-### Managing Users
-Admins can navigate to **Settings** ➔ **User Accounts** to:
-* Create operator accounts with explicit roles (`viewer`, `editor`, `admin`).
-* Revoke active sessions or update passwords.
-* Reset failed login counters.
+### Managing Users via Grafana
+NetMonitor integrates directly with Grafana's user authentication system. To manage operator accounts:
+1. Open Grafana Administration (`http://<SERVER_IP>:3000/admin/users`).
+2. Create or invite users, and assign them an organization role:
+   * **Viewer:** Read-only access to dashboards, analytics, and topology.
+   * **Editor:** Operational access to acknowledge alerts, edit devices, and trigger discovery.
+   * **Admin:** Full administrative control over global settings, communities, and emergency credentials.
+3. Users log into NetMonitor using their Grafana username and password. NetMonitor queries Grafana's `/api/user` endpoint and dynamically applies the corresponding RBAC permissions.
 
 ---
 
@@ -178,72 +178,50 @@ snmp-server host 10.0.0.50 v2c community YourCommunity
 
 ---
 
-## 5. Network Auto-Discovery Operations
+## 5. Network Discovery & Topology Operations
 
-NetMonitor features active subnet discovery and recursive neighbor table walking.
+NetMonitor separates network discovery into two complementary workflows:
 
-### Configuring Discovery CIDRs
-1. In **Settings** ➔ **Network Auto-Discovery**, set:
-   * **Default Discovery CIDR:** e.g., `10.0.0.0/24` or `172.16.10.0/24`
-   * **Default SNMP Community:** The community string used for fingerprinting
-   * **Probing Timeout:** 1500ms
+### 5.1 Subnet IP & Device Scanner (`/api/scan`)
+In **Device Manager** ➔ **Scan Subnet**:
+1. Enter an IP Range or CIDR subnet (e.g. `192.168.1.0/24` or `192.168.1.1-254`).
+2. Specify the SNMP Community String to test against discovered endpoints.
+3. Click **Start Scan**.
+4. The scanner executes:
+   * **Ping Sweep:** Identifies active IP addresses on the wire.
+   * **SNMP System Fingerprinting:** Queries `sysDescr` (1.3.6.1.2.1.1.1.0) and `sysName` (1.3.6.1.2.1.1.5.0) to automatically identify vendor (`Cisco`, `Aruba`, `Huawei`, `MikroTik`, `Fortinet`, `Palo Alto`, `Ubiquiti`, `Ruijie`, `Linux`, `Windows`) and hardware role (`switch`, `router`, `firewall`, `ap`, `server`).
+5. Operators review discovered devices in the modal and click **Add Device** to import them directly into the persistent inventory.
 
-### Discovery Workflow: LLDP & CDP Crawling
-1. Click **Topology** ➔ **Auto-Discovery**.
-2. NetMonitor executes:
-   * **Phase 1: Ping Sweep:** Discovers active IP addresses in the subnet.
-   * **Phase 2: SNMP System Check:** Queries `sysDescr` (1.3.6.1.2.1.1.1) and `sysObjectID` (1.3.6.1.2.1.1.2) to classify device vendor and OS.
-   * **Phase 3: Neighbor Crawl:** Queries LLDP (`lldpRemSysName`, `lldpRemPortId`) and Cisco CDP (`cdpCacheDeviceId`, `cdpCacheDevicePort`).
-   * **Phase 4: Deduplication:** Eliminates reciprocal duplicate links and merges dual-protocol links into a single canonical link with 100% confidence score.
-
-### Promoting Discovered Devices to Production
-* Discovered devices appear in the **Staging Discovery Drawer**.
-* Operators review hostnames, assign permanent rack locations, and click **Approve & Add to Inventory**.
+### 5.2 Topology Neighbor Crawling (`/api/topology/discover`)
+In **Topology View** ➔ **Discover Topology**:
+1. NetMonitor queries all active managed switches already registered in inventory.
+2. The crawler executes:
+   * **Interface Mapping:** Subtree walks `ifName` (1.3.6.1.2.1.31.1.1.1.1) and `ifDescr` (1.3.6.1.2.1.2.2.1.2).
+   * **LLDP Table Sweep:** Subtree walks standard IEEE `LLDP-MIB` (`lldpRemSysName`, `lldpRemPortId`, `lldpRemPortDesc`).
+   * **CDP Table Sweep:** Subtree walks Cisco `CISCO-CDP-MIB` (`cdpCacheDeviceId`, `cdpCacheDevicePort`, `cdpCacheAddress`).
+   * **Multi-Vendor Link Deduplication:** Automatically merges reciprocal links between vendors into canonical topology connections.
+3. Discovered links and neighbor relationships are automatically visualized on the 60 FPS interactive HTML5 canvas.
 
 ---
 
-## 6. Alerting & Webhook Integrations
+## 6. Alerting & LINE Messaging API Integration
 
-NetMonitor delivers real-time notifications for link failures, device offline events, and threshold breaches.
+NetMonitor delivers real-time notifications for device failures and high-latency incidents.
 
-### LINE Notify & LINE Messaging API
-1. Obtain your **Channel Access Token** from the [LINE Developers Console](https://developers.line.biz/).
-2. In NetMonitor **Settings** ➔ **Alerts & Notifications**:
-   * **LINE Channel Token:** Paste the long-lived Bearer token.
+### LINE Messaging API Configuration
+NetMonitor pushes rich notification messages using the official LINE Messaging API push endpoint (`https://api.line.me/v2/bot/message/push`):
+1. In the [LINE Developers Console](https://developers.line.biz/), create a Messaging API channel and issue a **Channel Access Token (long-lived)**.
+2. Add your LINE Bot to your target LINE Group or obtain your personal User ID (`U...`).
+3. In NetMonitor **Settings** ➔ **Alerts & Notifications**:
+   * **LINE Channel Token:** Paste the Bearer token (stored masked with `***` in API responses).
    * **LINE Target ID:** Paste the target Group ID (`c...`) or User ID (`U...`).
-3. Click **Test Notification** to verify delivery.
-
-### Telegram Bot Integration
-1. Open Telegram and talk to `@BotFather` to create a new bot and obtain your Bot Token (`123456:ABC-DEF...`).
-2. Add the bot to your network operations group.
-3. Obtain your Chat ID using `https://api.telegram.org/bot<TOKEN>/getUpdates`.
-4. Configure in NetMonitor settings:
-   * **Webhook URL:** `https://api.telegram.org/bot<TOKEN>/sendMessage`
-   * **Payload Template:**
-     ```json
-     {
-       "chat_id": "-1001234567890",
-       "text": "🚨 *NETMONITOR ALERT*\nDevice: {device_name}\nIP: {device_ip}\nStatus: {status}\nSeverity: {severity}",
-       "parse_mode": "Markdown"
-     }
-     ```
-
-### Generic Webhooks (Slack, Discord, Microsoft Teams)
-NetMonitor supports sending standard JSON HTTP POST requests to any incoming webhook URL:
-```bash
-POST https://hooks.slack.com/services/T00/B00/XXXX
-Content-Type: application/json
-
-{
-  "text": "🚨 Device Alert: SW-CORE-01 (10.0.0.1) is DOWN!"
-}
-```
+4. Click **Save Settings**. When configured, the backend dispatches notifications immediately on state transitions.
 
 ### Alert Lifecycle: Cooldown, Flapping & Acknowledgement
-1. **Trigger:** A device fails 3 consecutive ICMP probes (`probe_success == 0`).
-2. **Notification & Cooldown:** The alert is dispatched to configured channels. A 5-minute cooldown timer is initiated. If the device flaps up and down within this window, redundant notifications are suppressed.
-3. **Operator Acknowledgment:** Operators can click **Acknowledge** in the UI. This changes the badge to orange (`ACKNOWLEDGED`), records the acknowledging operator's username, and mutes further reminders.
-4. **Resolution:** When the device responds to ICMP probes again, an automatic **[RESOLVED]** message is dispatched, and the incident is archived to history.
+1. **Trigger:** The backend continuously monitors target availability (`probe_success == 0`).
+2. **Notification & Cooldown:** When an outage is detected, an alert card is dispatched to LINE. A flapping cooldown timer suppresses duplicate notifications during intermittent link state bounces.
+3. **Operator Acknowledgment:** Operators can click **Acknowledge** in the Alerts UI. This marks the alert as acknowledged, records the operator's name, and prevents further reminders.
+4. **Automatic Recovery Resolution:** When the device responds to ICMP probes again, an automatic **[RESOLVED]** message is dispatched to LINE, and the incident is archived to history.
 
 ---
 
