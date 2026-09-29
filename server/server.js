@@ -62,17 +62,17 @@ function getDefaultData() {
       grafanaUrl: 'http://localhost:3000',
       snmpJob: 'snmp',
       blackboxJob: 'blackbox-icmp',
-      refreshInterval: 10,
-      orgName: 'Enterprise Network Monitoring Platform',
-      wanInterface: 'GigabitEthernet0/0/0',
-      defaultCommunity: 'public',
-      defaultModule: 'if_mib',
-      defaultDiscoveryCidr: '192.168.1.0/24',
-      emergencyUsername: 'emergency',
-      emergencyPassword: 'emergency@netmon',
+      refreshInterval: parseInt(process.env.PROMETHEUS_SCRAPE_INTERVAL, 10) || 10,
+      orgName: process.env.ORG_NAME || 'Enterprise Network Monitoring Platform',
+      wanInterface: process.env.WAN_INTERFACE || 'auto',
+      defaultCommunity: (process.env.DEFAULT_SNMP_COMMUNITY || 'public').trim(),
+      defaultModule: process.env.DEFAULT_SNMP_MODULE || 'if_mib',
+      defaultDiscoveryCidr: process.env.DEFAULT_DISCOVERY_CIDR || '192.168.1.0/24',
+      emergencyUsername: process.env.EMERGENCY_USERNAME || 'emergency',
+      emergencyPassword: process.env.EMERGENCY_PASSWORD || 'emergency@netmon',
       isConfigured: false,
-      lineChannelToken: '',
-      lineTargetId: '',
+      lineChannelToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
+      lineTargetId: process.env.LINE_USER_ID || '',
     },
     topology: {
       nodes: [],
@@ -1410,7 +1410,17 @@ function generateTargetsYaml(activeDevices, defaultSettings = {}) {
     const ip = d.ip.trim();
     // Use central SNMP mapping engine (eliminates phantom modules & maps community to auth profiles)
     const resolvedMod = resolveDeviceModule(d, defaultMod);
-    const SUPPORTED_SNMP_MODULES = ['if_mib', 'cisco_switch', 'aruba_switch'];
+    const SUPPORTED_SNMP_MODULES = [
+      'if_mib',
+      'cisco_switch',
+      'cisco_sb',
+      'aruba_switch',
+      'huawei_switch',
+      'mikrotik_router',
+      'host_resources',
+      'synology',
+      'apcups'
+    ];
     const mod = SUPPORTED_SNMP_MODULES.includes(resolvedMod) ? resolvedMod : 'if_mib';
     const comm = (d.community && d.community !== '***' ? d.community : defaultComm).trim();
     const auth = resolveAuthProfile(comm);
@@ -1454,11 +1464,12 @@ function syncSnmpAuthProfiles(activeDevices = [], defaultSettings = {}) {
     }
   }
 
-  // Collect all unique communities (guarantee default public and production seavl77)
+  // Collect all unique communities dynamically from env, default settings, and devices
   const communities = new Set();
   communities.add('public');
-  communities.add('seavl77');
-  const defComm = (defaultSettings.defaultCommunity || 'public').trim();
+  const envComm = (process.env.DEFAULT_SNMP_COMMUNITY || '').trim();
+  if (envComm && envComm !== '***') communities.add(envComm);
+  const defComm = (defaultSettings.defaultCommunity || '').trim();
   if (defComm && defComm !== '***') communities.add(defComm);
   (activeDevices || []).forEach(d => {
     const c = (d.community || '').trim();

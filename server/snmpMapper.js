@@ -6,24 +6,25 @@
 
 // Supported and verified modules in snmp.yml
 const VALID_SNMP_MODULES = [
-  'if_mib',         // Universal standard interfaces + LLDP + CDP
-  'cisco_switch',   // Cisco Catalyst/IOS-XE (Interfaces + LLDP/CDP + CPU + Memory)
-  'cisco_basic',    // Lightweight Cisco CPU & Memory only
-  'cisco_device',   // Cisco Environmental + Hardware Sensors
-  'cisco_wlc',      // Cisco Wireless Controller
-  'aruba_switch',   // HP/Aruba 2530/ProCurve/ArubaOS-S (Interfaces + LLDP + CPU + Memory)
-  'host_resources', // Host Resources RFC 2790 (CPU + Memory/Storage) for Servers/Linux/Ruckus
-  'synology',       // Synology NAS Storage & System
-  'apcups',         // APC UPS Power & Battery
-  'lldp_cdp',       // Topology Neighbors only
+  'if_mib',          // Universal standard interfaces + LLDP + CDP (RFC 2863)
+  'cisco_switch',    // Cisco Catalyst/IOS-XE (Interfaces + LLDP/CDP + CPU + Memory)
+  'cisco_sb',        // Cisco Small Business / Catalyst 1200/1300 / CBS350 (Radlan CPU + Traffic)
+  'cisco_basic',     // Lightweight Cisco CPU & Memory only
+  'cisco_device',    // Cisco Environmental + Hardware Sensors
+  'cisco_wlc',       // Cisco Wireless Controller
+  'aruba_switch',    // HP/Aruba 2530/ProCurve/ArubaOS-S (Interfaces + LLDP + CPU + Memory)
+  'huawei_switch',   // Huawei VRP S-Series / CloudEngine (Interfaces + LLDP + CPU + Memory)
+  'mikrotik_router', // MikroTik RouterOS (Interfaces + LLDP + CPU + Storage)
+  'host_resources',  // Host Resources RFC 2790 (CPU + Memory/Storage) for Servers/Linux/Windows
+  'synology',        // Synology NAS Storage & System
+  'apcups',          // APC UPS Power & Battery
+  'lldp_cdp',        // Topology Neighbors only
 ];
 
 // Valid auth profiles defined in snmp.yml
 const VALID_AUTH_PROFILES = [
-  'public_v2',      // SNMPv2c with community: public
-  'public_v1',      // SNMPv1 with community: public
-  'seavl77_v2',     // Production switch community
-  'auth_seavl77_v2',// Alias for backward compatibility
+  'public_v2',       // SNMPv2c with community: public
+  'public_v1',       // SNMPv1 with community: public
 ];
 
 // Community string to Auth Profile translation map
@@ -31,9 +32,6 @@ const COMMUNITY_TO_AUTH_MAP = {
   'public': 'public_v2',
   'public_v2': 'public_v2',
   'public_v1': 'public_v1',
-  'seavl77': 'seavl77_v2',
-  'seavl77_v2': 'seavl77_v2',
-  'auth_seavl77_v2': 'seavl77_v2',
 };
 
 // Vendor to SNMP Exporter module mapping
@@ -41,6 +39,8 @@ const VENDOR_TO_MODULE_MAP = {
   'cisco': 'cisco_switch',
   'cisco systems': 'cisco_switch',
   'cisco catalyst': 'cisco_switch',
+  'cisco sb': 'cisco_sb',
+  'cisco small business': 'cisco_sb',
   'aruba': 'aruba_switch',
   'hpe': 'aruba_switch',
   'hp': 'aruba_switch',
@@ -49,10 +49,11 @@ const VENDOR_TO_MODULE_MAP = {
   'ruckus': 'if_mib',
   'brocade': 'if_mib',
   'fastiron': 'if_mib',
-  'huawei': 'if_mib',
+  'huawei': 'huawei_switch',
   'ruijie': 'if_mib',
   'reyee': 'if_mib',
-  'mikrotik': 'if_mib',
+  'mikrotik': 'mikrotik_router',
+  'routerboard': 'mikrotik_router',
   'ubiquiti': 'if_mib',
   'synology': 'synology',
   'apc': 'apcups',
@@ -101,19 +102,28 @@ function resolveDeviceModule(dev = {}, defaultModule = 'if_mib') {
     }
   }
 
+  // Check specific Model / OS / Name keywords first (e.g. Cisco SB vs Enterprise)
+  const text = `${dev.model || ''} ${dev.os || ''} ${dev.name || ''} ${dev.sysDescr || ''}`.toLowerCase();
+  if (/\b(c1200|c1300|cbs\d{3}|catalyst 1200|catalyst 1300|sg\d{3})\b/.test(text)) {
+    return 'cisco_sb';
+  }
+
   // Check Vendor name
   const vendor = (dev.vendor || '').toLowerCase().trim();
   if (vendor && VENDOR_TO_MODULE_MAP[vendor]) {
     return VENDOR_TO_MODULE_MAP[vendor];
   }
-
-  // Check Model / OS / Name keywords
-  const text = `${dev.model || ''} ${dev.os || ''} ${dev.name || ''} ${dev.sysDescr || ''}`.toLowerCase();
   if (/\b(catalyst|c9\d{3}|c3\d{3}|c2\d{3}|ws-c|ios-xe|cisco)\b/.test(text)) {
     return 'cisco_switch';
   }
   if (/\b(procurve|aruba|2530|2920|2930|5400|hp|hpe)\b/.test(text)) {
     return 'aruba_switch';
+  }
+  if (/\b(huawei|cloudengine|vrp|s57\d{2}|s67\d{2})\b/.test(text)) {
+    return 'huawei_switch';
+  }
+  if (/\b(mikrotik|routeros|routerboard|ccr\d{4}|crs\d{3})\b/.test(text)) {
+    return 'mikrotik_router';
   }
   if (/\b(synology|diskstation|nas)\b/.test(text)) {
     return 'synology';
@@ -161,7 +171,7 @@ function resolveAuthProfile(communityOrAuth, defaultProfile = 'public_v2') {
   if (VALID_AUTH_PROFILES.includes(stripped)) {
     return stripped;
   }
-  // Generate deterministic safe auth profile identifier: "${safeName}_v2" (matches public_v2, seavl77_v2)
+  // Generate deterministic safe auth profile identifier: "${safeName}_v2" (e.g. public_v2, custom_comm_v2)
   const safeName = stripped.replace(/_v\d+$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_');
   return `${safeName}_v2`;
 }

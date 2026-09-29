@@ -1,4 +1,9 @@
-const snmp = require('net-snmp');
+let snmp;
+try {
+  snmp = require('net-snmp');
+} catch {
+  snmp = require('../server/node_modules/net-snmp');
+}
 
 const targetIp = '192.168.255.71';
 const communities = ['seavl77', 'public'];

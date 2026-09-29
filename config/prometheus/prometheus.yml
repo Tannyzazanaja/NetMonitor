@@ -59,7 +59,7 @@ scrape_configs:
 
       # Step C: Redirect HTTP scrape request to the Blackbox Exporter daemon
       - target_label: __address__
-        replacement: localhost:9115
+        replacement: blackbox-exporter:9115
 
   # ---------------------------------------------------------------------------
   # 3. Unified SNMP Job (Generic Single Job for ALL Vendors)
@@ -105,4 +105,4 @@ scrape_configs:
 
       # Step E: Address -> SNMP Exporter daemon
       - target_label: __address__
-        replacement: localhost:9116
+        replacement: snmp-exporter:9116

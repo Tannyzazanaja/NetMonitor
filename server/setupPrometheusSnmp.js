@@ -112,7 +112,7 @@ function runSetup() {
         content = content.replace(/auths:\r?\n/, match => `${match}  public_v1:\n    community: public\n    version: 1\n`);
       }
 
-      // Read DB files to inject custom community auth profiles (including production seavl77)
+      // Read DB files and env to inject custom community auth profiles
       try {
         const dbCandidates = [
           path.resolve(__dirname, '../data/db.json'),
@@ -122,9 +122,9 @@ function runSetup() {
           '/app/data/db.json',
         ];
         const comms = new Set();
-        // Always include default 'public' and production 'seavl77'
         comms.add('public');
-        comms.add('seavl77');
+        const envComm = (process.env.DEFAULT_SNMP_COMMUNITY || '').trim();
+        if (envComm && envComm !== '***') comms.add(envComm);
         for (const p of dbCandidates) {
           if (fs.existsSync(p)) {
             try {
@@ -179,9 +179,14 @@ function runSetup() {
       } catch {}
       log('Successfully saved /etc/prometheus/snmp.yml and /etc/snmp_exporter/snmp.yml with auth profiles and optimized modules');
     } else {
-      // If snmp.yml does not exist at all, create it with baseline auths + modules
       log('Creating baseline /etc/prometheus/snmp.yml with auths and optimized modules...');
-      const baseline = `auths:\n  public_v1:\n    community: public\n    version: 1\n  public_v2:\n    community: public\n    version: 2\n  seavl77_v2:\n    community: seavl77\n    version: 2\n  auth_seavl77_v2:\n    community: seavl77\n    version: 2\n\n` + modContent;
+      let baselineAuths = `auths:\n  public_v1:\n    community: public\n    version: 1\n  public_v2:\n    community: public\n    version: 2\n`;
+      const envComm = (process.env.DEFAULT_SNMP_COMMUNITY || '').trim();
+      if (envComm && envComm !== 'public' && envComm !== '***') {
+        const safe = envComm.replace(/[^a-zA-Z0-9_-]/g, '_');
+        baselineAuths += `  ${safe}_v2:\n    community: ${envComm}\n    version: 2\n`;
+      }
+      const baseline = baselineAuths + '\n' + modContent;
       fs.writeFileSync(snmpTarget, baseline, 'utf8');
       try {
         if (!fs.existsSync('/etc/snmp_exporter')) fs.mkdirSync('/etc/snmp_exporter', { recursive: true });

@@ -1,3 +1,11 @@
+auths:
+  public_v1:
+    community: public
+    version: 1
+  public_v2:
+    community: public
+    version: 2
+
 # =============================================================================
 # OPTIMIZED SNMP EXPORTER MODULES (Cisco & Aruba / HPE Switches)
 # =============================================================================

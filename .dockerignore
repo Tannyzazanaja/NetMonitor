@@ -1,0 +1,29 @@
+# Git and IDE metadata
+.git
+.github
+.gitignore
+.vscode
+.idea
+
+# Dependencies
+node_modules
+server/node_modules
+
+# Build artifacts
+dist
+*.log
+npm-debug.log*
+
+# Environment and sensitive secrets
+.env
+.env.local
+.env.production
+
+# Documentation and tests
+tests
+*.md
+deploy.log
+
+# Temporary files
+tmp
+temp

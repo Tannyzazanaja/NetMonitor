@@ -54,13 +54,29 @@ const ruckusTest = resolveDeviceModule({
 });
 assert(ruckusTest === 'if_mib', `Ruckus resolved safely to if_mib (got: ${ruckusTest})`);
 
-// Huawei (Should map to safe if_mib)
+// Huawei (Should map to huawei_switch)
 const huaweiTest = resolveDeviceModule({
   ip: '192.168.10.16',
   sysObjectID: '1.3.6.1.4.1.2011.2.23',
   vendor: 'Huawei'
 });
-assert(huaweiTest === 'if_mib', `Huawei resolved safely to if_mib (got: ${huaweiTest})`);
+assert(huaweiTest === 'huawei_switch', `Huawei resolved to huawei_switch (got: ${huaweiTest})`);
+
+// MikroTik (Should map to mikrotik_router)
+const mikrotikTest = resolveDeviceModule({
+  ip: '192.168.10.17',
+  vendor: 'MikroTik',
+  model: 'CCR2004'
+});
+assert(mikrotikTest === 'mikrotik_router', `MikroTik resolved to mikrotik_router (got: ${mikrotikTest})`);
+
+// Cisco Catalyst 1300 Small Business (Should map to cisco_sb)
+const ciscoSbTest = resolveDeviceModule({
+  ip: '192.168.10.18',
+  vendor: 'Cisco',
+  model: 'Catalyst 1300'
+});
+assert(ciscoSbTest === 'cisco_sb', `Cisco Catalyst 1300 resolved to cisco_sb (got: ${ciscoSbTest})`);
 
 // Linux Server
 const linuxTest = resolveDeviceModule({

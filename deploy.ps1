@@ -1,261 +1,286 @@
+<#
+.SYNOPSIS
+    NetMonitor Enterprise Turn-Key Deployment Script (Windows / Windows Server)
+.DESCRIPTION
+    Automated pre-flight checks, environment initialization, cryptographic secret generation,
+    hardened Docker Compose orchestration startup, and service health verification.
+.PARAMETER RemoteServer
+    Optional remote Linux/Ubuntu host to deploy to over SSH instead of local Docker.
+.PARAMETER ServerUser
+    Remote SSH username (defaults to 'root').
+#>
+
 param (
-    [string]$ServerHost = "192.168.109.147",
+    [string]$RemoteServer = "192.168.109.147",
     [string]$ServerUser = "root",
-    [string]$RemoteDir = "/var/www/netmonitor-react/dist"
+    [switch]$SkipBuild = $false
 )
 
-Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "NetMonitor Platform - Production Single-Click Deploy" -ForegroundColor Cyan
-Write-Host "Target: $ServerUser@$ServerHost -> Single Backend Port: 5001" -ForegroundColor Yellow
-Write-Host "==========================================================" -ForegroundColor Cyan
+$ErrorActionPreference = "Stop"
 
-# -----------------------------------------------------------------------------
-# 1. Build Vite Production Bundle (Requirement 14: Check build success)
-# -----------------------------------------------------------------------------
-Write-Host "`n[1/4] Building production frontend assets (npm run build)..." -ForegroundColor Green
-npm.cmd run build
+Write-Host "================================================================================" -ForegroundColor Cyan
+Write-Host "    NETMONITOR ENTERPRISE PLATFORM - TURN-KEY DEPLOYMENT & HEALTHCHECK" -ForegroundColor Cyan
+Write-Host "================================================================================" -ForegroundColor Cyan
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "[ERROR] Build failed! Aborting deployment before touching production services." -ForegroundColor Red
-    exit $LASTEXITCODE
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location $ScriptDir
+
+# =============================================================================
+# MODE A: Local Docker Turn-Key Deployment (Default)
+# =============================================================================
+if ([string]::IsNullOrWhiteSpace($RemoteServer)) {
+    Write-Host "`n[Step 1/5] Running Pre-Flight System Checks..." -ForegroundColor Blue
+
+    # 1.1 Check Docker CLI
+    $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
+    if (-not $dockerCmd) {
+        Write-Host "[ERROR] Docker is not installed or not in PATH." -ForegroundColor Red
+        Write-Host "Please install Docker Desktop or Docker Engine: https://docs.docker.com/desktop/install/windows-install/"
+        exit 1
+    }
+    Write-Host "  [OK] Docker CLI is available." -ForegroundColor Green
+
+    # 1.2 Check Docker Daemon
+    try {
+        $dockerInfo = docker info 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Docker daemon not running"
+        }
+        Write-Host "  [OK] Docker engine is active and responsive." -ForegroundColor Green
+    }
+    catch {
+        Write-Host "[ERROR] Docker daemon is not running. Please start Docker Desktop/Engine." -ForegroundColor Red
+        exit 1
+    }
+
+    # 1.3 Check Docker Compose
+    $composeCmd = "docker compose"
+    $composeCheck = docker compose version 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $composeCheckLegacy = docker-compose version 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $composeCmd = "docker-compose"
+        } else {
+            Write-Host "[ERROR] Docker Compose is not installed." -ForegroundColor Red
+            exit 1
+        }
+    }
+    Write-Host "  [OK] Docker Compose is available ($composeCmd)." -ForegroundColor Green
+
+    # 1.4 Check RAM and Disk
+    try {
+        $osInfo = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+        if ($osInfo) {
+            $totalRamGb = [math]::Round($osInfo.TotalVisibleMemorySize / 1MB, 1)
+            $freeRamGb = [math]::Round($osInfo.FreePhysicalMemory / 1MB, 1)
+            Write-Host "  [OK] System Memory: $totalRamGb GB Total ($freeRamGb GB Free)." -ForegroundColor Green
+        }
+    } catch {}
+
+    try {
+        $driveLetter = (Get-Location).Drive.Name
+        $diskInfo = Get-PSDrive -Name $driveLetter -ErrorAction SilentlyContinue
+        if ($diskInfo) {
+            $freeDiskGb = [math]::Round($diskInfo.Free / 1GB, 1)
+            if ($freeDiskGb -lt 5) {
+                Write-Host "  [ERROR] Insufficient disk space: Only $freeDiskGb GB free on drive $driveLetter." -ForegroundColor Red
+                exit 1
+            }
+            Write-Host "  [OK] Available Disk Space: $freeDiskGb GB on drive $driveLetter." -ForegroundColor Green
+        }
+    } catch {}
+
+    # -------------------------------------------------------------------------
+    # 2. Environment Initialization & Secret Generation
+    # -------------------------------------------------------------------------
+    Write-Host "`n[Step 2/5] Initializing Environment & Cryptographic Secrets..." -ForegroundColor Blue
+
+    $envPath = Join-Path $ScriptDir ".env"
+    $envExamplePath = Join-Path $ScriptDir ".env.example"
+
+    if (-not (Test-Path $envPath)) {
+        if (Test-Path $envExamplePath) {
+            Write-Host "  -> .env file not found. Auto-generating from .env.example..." -ForegroundColor Yellow
+            Copy-Item $envExamplePath $envPath
+        } else {
+            Write-Host "[ERROR] Neither .env nor .env.example found!" -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Write-Host "  [OK] Existing .env configuration file found." -ForegroundColor Green
+    }
+
+    # Load and update secrets if missing
+    $envContent = Get-Content $envPath -Raw
+
+    # Generate SESSION_SECRET if blank
+    if ($envContent -match 'SESSION_SECRET=\s*(\r?\n)') {
+        $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+        $bytes = New-Object byte[] 32
+        $rng.GetBytes($bytes)
+        $newSessionSecret = -join ($bytes | ForEach-Object { "{0:x2}" -f $_ })
+        $envContent = $envContent -replace 'SESSION_SECRET=\s*(\r?\n)', "SESSION_SECRET=$newSessionSecret`$1"
+        Write-Host "  [OK] Auto-generated cryptographic SESSION_SECRET." -ForegroundColor Green
+    }
+
+    # Generate JWT_SECRET if blank
+    if ($envContent -match 'JWT_SECRET=\s*(\r?\n)') {
+        $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+        $bytes = New-Object byte[] 32
+        $rng.GetBytes($bytes)
+        $newJwtSecret = -join ($bytes | ForEach-Object { "{0:x2}" -f $_ })
+        $envContent = $envContent -replace 'JWT_SECRET=\s*(\r?\n)', "JWT_SECRET=$newJwtSecret`$1"
+        Write-Host "  [OK] Auto-generated cryptographic JWT_SECRET." -ForegroundColor Green
+    }
+
+    # Generate EMERGENCY_PASSWORD if blank
+    $emergencyPass = ""
+    if ($envContent -match 'EMERGENCY_PASSWORD=\s*(\r?\n)') {
+        $chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!#$"
+        $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+        $bytes = New-Object byte[] 12
+        $rng.GetBytes($bytes)
+        $emergencyPass = -join ($bytes | ForEach-Object { $chars[$_ % $chars.Length] })
+        $envContent = $envContent -replace 'EMERGENCY_PASSWORD=\s*(\r?\n)', "EMERGENCY_PASSWORD=$emergencyPass`$1"
+        Write-Host "  [★] Auto-generated initial EMERGENCY_PASSWORD: $emergencyPass" -ForegroundColor Yellow
+    }
+
+    Set-Content -Path $envPath -Value $envContent -Encoding UTF8
+
+    # Extract HTTP_PORT from .env
+    $httpPort = 80
+    if ($envContent -match 'HTTP_PORT=(\d+)') {
+        $httpPort = [int]$matches[1]
+    }
+
+    # 1.5 Port Collision Check
+    try {
+        $activeConns = Get-NetTCPConnection -LocalPort $httpPort -State Listen -ErrorAction SilentlyContinue
+        if ($activeConns) {
+            Write-Host "  [WARNING] Port $httpPort is already occupied on this host. Consider changing HTTP_PORT in .env." -ForegroundColor Yellow
+        }
+    } catch {}
+
+    # -------------------------------------------------------------------------
+    # 3. Directory Structure Setup
+    # -------------------------------------------------------------------------
+    Write-Host "`n[Step 3/5] Setting Up Directory Tree..." -ForegroundColor Blue
+
+    $directories = @(
+        "data/targets/blackbox",
+        "data/targets/snmp",
+        "config/nginx/ssl"
+    )
+    foreach ($dir in $directories) {
+        $targetDir = Join-Path $ScriptDir $dir
+        if (-not (Test-Path $targetDir)) {
+            New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+        }
+    }
+    Write-Host "  [OK] Verified runtime directory tree." -ForegroundColor Green
+
+    # -------------------------------------------------------------------------
+    # 4. Container Build & Orchestration Startup
+    # -------------------------------------------------------------------------
+    Write-Host "`n[Step 4/5] Building & Launching Container Services..." -ForegroundColor Blue
+
+    if (-not $SkipBuild) {
+        Invoke-Expression "$composeCmd build"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[ERROR] Docker build failed." -ForegroundColor Red
+            exit $LASTEXITCODE
+        }
+    }
+
+    Invoke-Expression "$composeCmd up -d"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] Docker compose up failed." -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
+    Write-Host "  [OK] Containers started in background." -ForegroundColor Green
+
+    # -------------------------------------------------------------------------
+    # 5. Health Check & Service Verification Loop
+    # -------------------------------------------------------------------------
+    Write-Host "`n[Step 5/5] Performing Health Check & Service Verification..." -ForegroundColor Blue
+
+    $healthUrl = "http://localhost:$httpPort/api/health"
+    $maxWaitSec = 60
+    $elapsed = 0
+    $isHealthy = $false
+
+    Write-Host -NoNewline "Waiting for NetMonitor Gateway to become healthy"
+    while ($elapsed -lt $maxWaitSec) {
+        try {
+            $resp = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 3 -ErrorAction SilentlyContinue
+            if ($resp.StatusCode -eq 200) {
+                $isHealthy = $true
+                break
+            }
+        } catch {}
+        Write-Host -NoNewline "."
+        Start-Sleep -Seconds 2
+        $elapsed += 2
+    }
+    Write-Host ""
+
+    if ($isHealthy) {
+        Write-Host "  [OK] System is HEALTHY (Response received from $healthUrl)." -ForegroundColor Green
+    } else {
+        Write-Host "  [WARNING] Health check timeout ($maxWaitSec s). Services may still be initializing indices." -ForegroundColor Yellow
+    }
+
+    # -------------------------------------------------------------------------
+    # 6. Deployment Summary
+    # -------------------------------------------------------------------------
+    Write-Host "`n================================================================================" -ForegroundColor Cyan
+    Write-Host "                   DEPLOYMENT COMPLETED SUCCESSFULLY" -ForegroundColor Cyan
+    Write-Host "================================================================================" -ForegroundColor Cyan
+
+    Write-Host "`nContainer Status:" -ForegroundColor White
+    Invoke-Expression "$composeCmd ps"
+
+    Write-Host "`nPlatform Access URLs:" -ForegroundColor White
+    Write-Host "  • Web Management Portal: http://localhost:$httpPort" -ForegroundColor Cyan
+    Write-Host "  • Health Check API:      http://localhost:$httpPort/api/health" -ForegroundColor Cyan
+
+    if ($emergencyPass) {
+        Write-Host "`nInitial Administrative Credentials:" -ForegroundColor White
+        Write-Host "  • Username: admin" -ForegroundColor White
+        Write-Host "  • Password: $emergencyPass" -ForegroundColor Yellow
+        Write-Host "  (Please change your password immediately after initial login via Setup Wizard)" -ForegroundColor DarkYellow
+    }
+
+    Write-Host "`nQuick Operations Commands:" -ForegroundColor White
+    Write-Host "  • View Live Logs: $composeCmd logs -f netmonitor" -ForegroundColor Green
+    Write-Host "  • Stop Services:  $composeCmd down" -ForegroundColor Green
+    Write-Host "  • Restart:        $composeCmd restart" -ForegroundColor Green
+    Write-Host ""
 }
+# =============================================================================
+# MODE B: Remote Deployment via SSH
+# =============================================================================
+else {
+    Write-Host "`n[Remote Deploy Mode] Target Host: $ServerUser@$RemoteServer" -ForegroundColor Yellow
 
-# -----------------------------------------------------------------------------
-# 2. Upload Frontend files
-# -----------------------------------------------------------------------------
-Write-Host "`n[2/4] Uploading frontend dist files..." -ForegroundColor Green
-ssh "$($ServerUser)@$($ServerHost)" "mkdir -p /var/www/netmonitor-react/dist /var/www/netmonitor-react/server /etc/prometheus/targets/blackbox /etc/prometheus/targets/snmp /etc/prometheus/backup"
-scp -r dist/* "$($ServerUser)@$($ServerHost):$($RemoteDir)/"
-
-# -----------------------------------------------------------------------------
-# 3. Package Backend, Dependencies, and Configurations (Single Source of Truth)
-# -----------------------------------------------------------------------------
-Write-Host "`n[3/4] Packaging Backend (server.js), dependencies, and Prometheus configs..." -ForegroundColor Green
-
-$serverJsB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes((Get-Content -Raw -Path server/server.js)))
-$scannerJsB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes((Get-Content -Raw -Path server/scanner.js)))
-$snmpMapperJsB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes((Get-Content -Raw -Path server/snmpMapper.js)))
-$setupPromSnmpB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes((Get-Content -Raw -Path server/setupPrometheusSnmp.js)))
-$packageJsonB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes((Get-Content -Raw -Path server/package.json)))
-$packageLockJsonB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes((Get-Content -Raw -Path server/package-lock.json)))
-$promConfigB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes((Get-Content -Raw -Path config/prometheus/prometheus.yml)))
-$snmpModulesB64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes((Get-Content -Raw -Path config/snmp_exporter/snmp_optimized_modules.yml)))
-
-$deployCommand = @"
-exec > /var/www/netmonitor-react/dist/deploy.log 2>&1
-echo "=== Starting Unified NetMonitor Deployment ==="
-date
-cd /var/www/netmonitor-react/server
-
-echo "1. Decoding backend source and package files..."
-echo "$serverJsB64" | base64 -d > server.js
-echo "$scannerJsB64" | base64 -d > scanner.js
-echo "$snmpMapperJsB64" | base64 -d > snmpMapper.js
-echo "$setupPromSnmpB64" | base64 -d > setupPrometheusSnmp.js
-echo "$packageJsonB64" | base64 -d > package.json
-echo "$packageLockJsonB64" | base64 -d > package-lock.json
-echo "$promConfigB64" | base64 -d > /tmp/prometheus_redesign.yml
-echo "$snmpModulesB64" | base64 -d > /tmp/snmp_optimized_modules.yml
-
-echo "2. Installing backend dependencies via npm ci (Requirement 11)..."
-npm ci --omit=dev
-
-echo "3. Executing Prometheus & SNMP Exporter Setup..."
-node setupPrometheusSnmp.js
-
-chown -R www-data:www-data /var/www/netmonitor-react
-chmod -R 777 /etc/prometheus/targets /etc/prometheus/backup 2>/dev/null || true
-chmod 666 /etc/prometheus/snmp.yml 2>/dev/null || true
-systemctl restart snmp_exporter 2>/dev/null || systemctl restart prometheus-snmp-exporter 2>/dev/null || pkill -HUP -f snmp_exporter 2>/dev/null || true
-curl -s -X POST http://localhost:9116/-/reload 2>/dev/null || true
-systemctl restart prometheus 2>/dev/null || systemctl reload prometheus 2>/dev/null || true
-curl -s -X POST http://localhost:9090/-/reload 2>/dev/null || true
-
-echo "4. Managing PM2 process (Service: netmonitor-backend, Port: 5001)..."
-# Release legacy ports (5000, 5002) and previous PM2 services if present
-fuser -k 5000/tcp 5002/tcp 2>/dev/null || true
-if command -v pm2 >/dev/null 2>&1; then
-    pm2 delete netmonitor-storage-api 2>/dev/null || true
-    pm2 restart netmonitor-backend --update-env 2>/dev/null || pm2 start server.js --name "netmonitor-backend"
-    pm2 save
-    pm2 startup systemd -u root --hp /root 2>/dev/null || true
-elif command -v npx >/dev/null 2>&1; then
-    npx pm2 delete netmonitor-storage-api 2>/dev/null || true
-    npx pm2 restart netmonitor-backend --update-env 2>/dev/null || npx pm2 start server.js --name "netmonitor-backend"
-    npx pm2 save
-    npx pm2 startup systemd -u root --hp /root 2>/dev/null || true
-else
-    echo "PM2 not found, falling back to nohup..."
-    pkill -f "node server.js" || true
-    nohup node server.js > server.log 2>&1 &
-fi
-
-echo "5. Configuring Nginx (Specific file: /etc/nginx/conf.d/netmonitor.conf)..."
-# Avoid removing non-netmonitor configs, only disable default if conflicting on 80
-rm -f /etc/nginx/sites-enabled/default
-rm -f /etc/nginx/conf.d/netmonitor-react.conf 2>/dev/null || true
-
-cat << 'EOF' > /etc/nginx/conf.d/netmonitor.conf
-server {
-    listen 80;
-    server_name _ localhost netmonitor.local;
-
-    root /var/www/netmonitor-react/dist;
-    index index.html;
-
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 1024;
-    gzip_proxied expired no-cache no-store private auth;
-    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml application/javascript application/json image/svg+xml;
-
-    location /assets/ {
-        expires 1y;
-        add_header Cache-Control "public, max-age=31536000, immutable";
+    Write-Host "[1/3] Building production frontend bundle..." -ForegroundColor Green
+    $npmCmd = if (Get-Command npm.cmd -ErrorAction SilentlyContinue) { "npm.cmd" } else { "npm" }
+    & $npmCmd run build
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ERROR] Frontend build failed!" -ForegroundColor Red
+        exit $LASTEXITCODE
     }
 
-    # Grafana Dashboard (Port 3000)
-    location ^~ /api/grafana/ {
-        proxy_pass http://127.0.0.1:3000/;
-        proxy_http_version 1.1;
-        proxy_set_header Host `$host;
-    }
+    Write-Host "[2/3] Uploading release package to $RemoteServer..." -ForegroundColor Green
+    $remoteHost = "$ServerUser@$RemoteServer"
+    ssh $remoteHost "mkdir -p /var/www/netmonitor-react/dist /var/www/netmonitor-react/server /etc/prometheus/targets/blackbox /etc/prometheus/targets/snmp"
+    $remoteDistPath = $remoteHost + ":/var/www/netmonitor-react/dist/"
+    $remoteServerPath = $remoteHost + ":/var/www/netmonitor-react/server/"
+    scp -r dist/* $remoteDistPath
+    scp -r server/* $remoteServerPath
 
-    location ^~ /api/grafana-auth/ {
-        proxy_pass http://127.0.0.1:3000/;
-        proxy_http_version 1.1;
-        proxy_set_header Host `$host;
-    }
+    Write-Host "[3/3] Restarting services on remote host..." -ForegroundColor Green
+    ssh $remoteHost "cd /var/www/netmonitor-react/server && npm ci --omit=dev && pm2 restart netmonitor-backend || pm2 start server.js --name netmonitor-backend"
 
-    # Prometheus Proxy (Port 9090)
-    location ^~ /api/prometheus/ {
-        proxy_pass http://127.0.0.1:9090/;
-        proxy_http_version 1.1;
-        proxy_set_header Host `$host;
-    }
-
-    # Dedicated SSE Stream Endpoint (Zero buffering, extended timeouts)
-    location ~* ^/api/storage/stream/ {
-        proxy_pass http://127.0.0.1:5001;
-        proxy_http_version 1.1;
-        proxy_set_header Connection '';
-        proxy_set_header Host `$host;
-        proxy_set_header X-Real-IP `$remote_addr;
-        proxy_set_header X-Forwarded-For `$proxy_add_x_forwarded_for;
-        proxy_buffering off;
-        proxy_cache off;
-        chunked_transfer_encoding off;
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
-    }
-
-    # NetMonitor Unified Backend API (Port 5001)
-    # Covers /api/health, /api/auth/, /api/storage/, /api/alerts/, /api/devices/, etc.
-    location /api/ {
-        proxy_pass http://127.0.0.1:5001/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Host `$host;
-        proxy_set_header X-Real-IP `$remote_addr;
-        proxy_set_header X-Forwarded-For `$proxy_add_x_forwarded_for;
-        proxy_cache_bypass `$http_upgrade;
-        proxy_buffering off;
-        proxy_cache off;
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
-    }
-
-    # SPA Frontend Fallback
-    location / {
-        try_files `$uri `$uri/ /index.html;
-    }
+    Write-Host "`n[OK] Remote deployment completed to http://$RemoteServer" -ForegroundColor Green
 }
-EOF
-
-echo "6. Validating Nginx configuration syntax (Requirement 13)..."
-nginx -t
-if [ `$? -ne 0 ]; then
-    echo "ERROR: Nginx configuration test failed! Aborting reload."
-    exit 1
-fi
-
-echo "7. Reloading Nginx, SNMP Exporter, and Prometheus..."
-systemctl reload nginx || systemctl restart nginx
-mkdir -p /etc/snmp_exporter
-cp -f /etc/prometheus/snmp.yml /etc/snmp_exporter/snmp.yml 2>/dev/null || true
-pkill -HUP -f snmp_exporter 2>/dev/null || true
-systemctl restart snmp_exporter 2>/dev/null || systemctl restart prometheus-snmp-exporter 2>/dev/null || systemctl restart snmp-exporter 2>/dev/null || true
-curl -s -X POST http://localhost:9116/-/reload 2>/dev/null || true
-systemctl restart prometheus 2>/dev/null || systemctl reload prometheus 2>/dev/null || true
-curl -s -X POST http://localhost:9090/-/reload 2>/dev/null || true
-systemctl start prometheus 2>/dev/null || true
-systemctl enable prometheus 2>/dev/null || true
-
-echo "--- SNMP Configuration & Probe Diagnostics ---"
-head -n 25 /etc/prometheus/snmp.yml 2>/dev/null || true
-echo "Probe test (seavl77_v2):"
-curl -s -i "http://127.0.0.1:9116/snmp?auth=seavl77_v2&module=if_mib&target=192.168.255.32" 2>&1 | head -n 12 || true
-echo "Probe test (public_v2):"
-curl -s -i "http://127.0.0.1:9116/snmp?auth=public_v2&module=if_mib&target=127.0.0.1" 2>&1 | head -n 8 || true
-echo "-----------------------------------------------"
-
-echo "8. Running Automated Health Checks (Requirement 16)..."
-HEALTH_OK=0
-for i in 1 2 3 4 5 6 7 8 9 10; do
-    if curl -fsS http://127.0.0.1:5001/api/health >/dev/null 2>&1; then
-        echo "Backend health check PASSED on port 5001."
-        HEALTH_OK=1
-        break
-    fi
-    echo "Waiting for backend service to respond... (`$i/10)"
-    sleep 1
-done
-
-if [ `$HEALTH_OK -eq 0 ]; then
-    echo "ERROR: Backend health check failed on http://127.0.0.1:5001/api/health"
-    exit 1
-fi
-
-if curl -fsS http://127.0.0.1/api/health >/dev/null 2>&1; then
-    echo "Nginx reverse proxy health check PASSED."
-else
-    echo "WARNING: Nginx reverse proxy health check did not return HTTP 200."
-fi
-
-echo "=== Deployment finished successfully ==="
-date
-"@
-
-# Fix CRLF and save to a temporary bash script
-$deployCommand = $deployCommand -replace "`r`n", "`n"
-Set-Content -Path "deploy_backend.sh" -Value $deployCommand -Encoding Ascii -NoNewline
-
-# -----------------------------------------------------------------------------
-# 4. Upload and Execute Unified Deployment Script
-# -----------------------------------------------------------------------------
-Write-Host "`n[4/4] Executing remote deployment script on server..." -ForegroundColor Green
-scp deploy_backend.sh "$($ServerUser)@$($ServerHost):/tmp/deploy_backend.sh"
-ssh "$($ServerUser)@$($ServerHost)" "tr -d '\r' < /tmp/deploy_backend.sh > /tmp/deploy_backend_lf.sh && bash /tmp/deploy_backend_lf.sh && rm -f /tmp/deploy_backend*"
-Remove-Item deploy_backend.sh -ErrorAction SilentlyContinue
-
-# -----------------------------------------------------------------------------
-# 5. Client-Side Post-Deployment Health Check (Requirement 16)
-# -----------------------------------------------------------------------------
-Write-Host "`n[Health Check] Verifying deployment from client..." -ForegroundColor Cyan
-try {
-    $health = Invoke-RestMethod -Uri "http://${ServerHost}/api/health" -TimeoutSec 5 -ErrorAction Stop
-    Write-Host " Health Check SUCCESSFUL!" -ForegroundColor Green
-    Write-Host "   Status:    $($health.status)" -ForegroundColor Gray
-    Write-Host "   Backend:   $($health.backend)" -ForegroundColor Gray
-    Write-Host "   Port:      $($health.port)" -ForegroundColor Gray
-    Write-Host "   Uptime:    $($health.uptime)s" -ForegroundColor Gray
-    Write-Host "   Timestamp: $($health.timestamp)" -ForegroundColor Gray
-} catch {
-    Write-Host " [Notice] Could not query http://${ServerHost}/api/health directly from this machine ($($_.Exception.Message)). Check deploy.log on server." -ForegroundColor Yellow
-}
-
-Write-Host "`n==========================================================" -ForegroundColor Green
-Write-Host "DEPLOYMENT SUCCESSFUL - SINGLE SOURCE OF TRUTH ACTIVE!" -ForegroundColor Green
-Write-Host "Access URLs:" -ForegroundColor Cyan
-Write-Host "  👉 http://${ServerHost}" -ForegroundColor Yellow
-Write-Host "  👉 http://netmonitor.local" -ForegroundColor Yellow
-Write-Host "==========================================================" -ForegroundColor Green
