@@ -6,14 +6,27 @@
 
 ## 1. ข้อกำหนดของระบบและตารางคำนวณสเปกฮาร์ดแวร์ (System Requirements & Sizing Matrix)
 
-| ตัวชี้วัด / ขนาดองค์กร | องค์กรขนาดเล็ก (< 50 อุปกรณ์) | องค์กรขนาดกลาง (50 - 250 อุปกรณ์) | องค์กรขนาดใหญ่ (> 250 อุปกรณ์) |
-|---|---|---|---|
-| **vCPU Cores** | 2 vCPU | 4 vCPU | 8 vCPU |
-| **หน่วยความจำ (RAM)** | 4 GB | 8 GB | 16 GB |
-| **พื้นที่จัดเก็บข้อมูลความเร็วสูง (SSD/NVMe)** | 50 GB | 150 GB | 500 GB+ |
-| **ระบบปฏิบัติการ (OS)** | Ubuntu 22.04 LTS / Debian 12 / RHEL 9 / Windows Server 2022 | เหมือนกัน | เหมือนกัน |
-| **Container Engine** | Docker Engine 24.0+ & Compose v2 | เหมือนกัน | เหมือนกัน |
-| **อินเทอร์เฟซเครือข่าย (NIC)** | 1 Gbps NIC | 1 Gbps / 10 Gbps | 10 Gbps Redundant NICs (Bonding) |
+ระบบ **NetMonitor** ได้รับการออกแบบให้ทำงานแบบ **Lightweight (กินทรัพยากรต่ำมาก)** โดยเขียน Backend ด้วย Vanilla Node.js, Frontend คอมไพล์เป็น Static Files เสิร์ฟผ่าน Nginx Alpine และใช้ Exporter ที่เขียนด้วยภาษา Go ไบนารีขนาดเล็ก **หน่วยความจำ RAM รวมของทั้ง 6 คอนเทนเนอร์ขณะทำงานจริงใช้เพียงประมาณ 350 MB – 600 MB เท่านั้น**
+
+### ตารางสเปกฮาร์ดแวร์ที่แนะนำสำหรับการใช้งานจริง (Realistic Sizing Matrix)
+
+| ตัวชี้วัด / ขนาดระบบ | Lab / สาขาย่อย (< 30 อุปกรณ์) | องค์กรขนาดเล็ก (< 50 อุปกรณ์) | องค์กรขนาดกลาง (50 - 200 อุปกรณ์) | องค์กรขนาดใหญ่ (> 200 อุปกรณ์) |
+|---|---|---|---|---|
+| **vCPU Cores** | 1 vCPU | 1 - 2 vCPU | 2 vCPU | 4 vCPU |
+| **หน่วยความจำ (RAM)** | 1 GB - 2 GB | 2 GB | 4 GB | 8 GB |
+| **พื้นที่จัดเก็บข้อมูล (SSD/NVMe)** | 10 GB | 15 - 20 GB | 30 - 50 GB | 80 - 100 GB |
+| **ระบบปฏิบัติการ (OS)** | Ubuntu 22.04 LTS / Debian 12 / RHEL 9 / Proxmox CT / Windows Server | เหมือนกัน | เหมือนกัน | เหมือนกัน |
+| **Container Engine** | Docker Engine 24.0+ & Compose v2 | เหมือนกัน | เหมือนกัน | เหมือนกัน |
+| **อินเทอร์เฟซเครือข่าย (NIC)** | 1 Gbps NIC | 1 Gbps NIC | 1 Gbps / 10 Gbps | 10 Gbps Redundant NICs |
+
+### ปริมาณการใช้ทรัพยากรจริงของแต่ละ Service (Real-World Footprint):
+
+* **NetMonitor Core (Node.js API):** ใช้ RAM เพียง **~40 MB – 60 MB** (ไม่ใช้ Framework เทอะทะ ทำงานรวดเร็ว)
+* **Nginx Gateway (Alpine):** ใช้ RAM เพียง **~10 MB – 15 MB** (เสิร์ฟไฟล์ Static ของ React และทำ Reverse Proxy)
+* **Blackbox Exporter (Go binary):** ใช้ RAM เพียง **~15 MB – 30 MB** (ยิง ICMP Ping ระดับวินาที กิน CPU แทบจะเป็น 0%)
+* **SNMP Exporter (Go binary):** ใช้ RAM เพียง **~25 MB – 50 MB** (ดึงเฉพาะ OID ที่จำเป็น ไม่ดึงตารางซ้ำซ้อน)
+* **Prometheus TSDB (Go binary):** ใช้ RAM เพียง **~150 MB – 300 MB** (ระบบบีบอัด Time-Series เฉลี่ย 1 ตัวเลขใช้เนื้อที่เพียง 1.5 Bytes ทำให้อุปกรณ์ 50 ตัว เก็บประวัติ 30 วัน ใช้พื้นที่ดิสก์เพียง **~1 GB – 3 GB** เท่านั้น)
+* **Grafana OSS:** ใช้ RAM เพียง **~80 MB – 150 MB**
 
 ---
 
@@ -163,3 +176,25 @@ tar -czf "${BACKUP_DIR}.tar.gz" -C "/backup" "$(basename "$BACKUP_DIR")"
 rm -rf "$BACKUP_DIR"
 echo "บันทึกไฟล์สำรองข้อมูลเรียบร้อยแล้วที่: ${BACKUP_DIR}.tar.gz"
 ```
+
+---
+
+## 8. การควบคุมสิทธิ์การเข้าถึง (RBAC) และการจัดการผู้ใช้ (User Management)
+
+NetMonitor รองรับการกำหนดสิทธิ์การใช้งาน 3 ระดับ (Three-Tier Privilege Model) โดยทำงานเชื่อมโยงกับระบบจัดการผู้ใช้ของ Grafana (`http://<SERVER_IP>:3000/admin/users`):
+
+| หน้าที่การทำงาน / ความสามารถในระบบ | Viewer (ผู้ดู) | Editor (ผู้ดูแลทั่วไป) | Admin (ผู้ดูแลระบบสูงสุด) |
+|---|:---:|:---:|:---:|
+| **ดูแดชบอร์ด Real-Time & ข้อมูล Telemetry** | ✅ | ✅ | ✅ |
+| **ดูแผนผังโครงสร้าง Topology เครือข่าย** | ✅ | ✅ | ✅ |
+| **ดูและส่งออกรายงานประวัติสถิติ (CSV/PNG)** | ✅ | ✅ | ✅ |
+| **รับทราบการแจ้งเตือน (Acknowledge Active Alerts)** | ❌ | ✅ | ✅ |
+| **เพิ่ม / แก้ไข / ลบ ข้อมูลอุปกรณ์เครือข่าย** | ❌ | ✅ | ✅ |
+| **สั่งค้นหาอุปกรณ์ Topology อัตโนมัติ & จัดบันทึกตำแหน่ง** | ❌ | ✅ | ✅ |
+| **แก้ไขการตั้งค่าหลักของระบบ & ซับเน็ต CIDR** | ❌ | ❌ | ✅ |
+| **กำหนดค่า SNMP Communities & LINE Notifications** | ❌ | ❌ | ✅ |
+| **เข้าใช้งานระบบด้วยบัญชีฉุกเฉิน Break-Glass** | ❌ | ❌ | ✅ |
+
+### บัญชีฉุกเฉินกรณีเกิดเหตุขัดข้อง (Emergency Break-Glass Account)
+ในกรณีที่ Grafana เกิดข้อผิดพลาด ไม่สามารถเชื่อมต่อได้ หรืออยู่ในขั้นตอนการกู้คืนระบบ (Disaster Recovery) ผู้ดูแลระบบสามารถล็อกอินเข้าสู่ระบบได้โดยตรงผ่านบัญชีฉุกเฉิน ซึ่งถูกกำหนดค่าไว้ในตัวแปร `EMERGENCY_USERNAME` (ค่าเริ่มต้น: `emergency`) และ `EMERGENCY_PASSWORD` ในไฟล์ `.env` โดยระบบจะมอบสิทธิ์ Admin สูงสุดทันทีโดยไม่พึ่งพาบริการภายนอกใดๆ
+

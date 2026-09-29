@@ -6,14 +6,27 @@ This guide provides step-by-step instructions for deploying, securing, and maint
 
 ## 1. System Requirements & Hardware Sizing Matrix
 
-| Metric / Scope | Small Enterprise (< 50 Devices) | Medium Enterprise (50 - 250 Devices) | Large Enterprise (> 250 Devices) |
-|---|---|---|---|
-| **vCPU Cores** | 2 vCPU | 4 vCPU | 8 vCPU |
-| **System Memory (RAM)** | 4 GB | 8 GB | 16 GB |
-| **Fast Storage (SSD/NVMe)** | 50 GB | 150 GB | 500 GB+ |
-| **Operating System** | Ubuntu 22.04 LTS / Debian 12 / RHEL 9 / Windows Server 2022 | Same | Same |
-| **Container Engine** | Docker Engine 24.0+ & Compose v2 | Same | Same |
-| **Network Interface** | 1 Gbps NIC | 1 Gbps / 10 Gbps | 10 Gbps redundant NICs |
+NetMonitor is engineered with **vanilla, zero-bloat microservices** (Node.js backend, static React build on Alpine Nginx, and compiled Go exporter binaries). Total active RAM across all 6 running containers is typically only **~350 MB – 600 MB** under normal operational load.
+
+### Recommended Hardware Sizing Matrix
+
+| Metric / Deployment Scale | Lab / Branch (< 30 Devices) | Small Enterprise (< 50 Devices) | Medium Enterprise (50 - 200 Devices) | Large Enterprise (> 200 Devices) |
+|---|---|---|---|---|
+| **vCPU Cores** | 1 vCPU | 1 - 2 vCPU | 2 vCPU | 4 vCPU |
+| **System Memory (RAM)** | 1 GB - 2 GB | 2 GB | 4 GB | 8 GB |
+| **Storage (SSD / NVMe)** | 10 GB | 15 - 20 GB | 30 - 50 GB | 80 - 100 GB |
+| **Operating System** | Ubuntu 22.04 LTS / Debian 12 / RHEL 9 / Proxmox CT / Windows Server | Same | Same | Same |
+| **Container Engine** | Docker Engine 24.0+ & Compose v2 | Same | Same | Same |
+| **Network Interface** | 1 Gbps NIC | 1 Gbps NIC | 1 Gbps / 10 Gbps | 10 Gbps Redundant NICs |
+
+### Real-World Container Memory & Storage Footprint:
+
+* **NetMonitor Core (Node.js API):** ~40 MB – 60 MB RAM (written in vanilla Node.js without heavy frameworks).
+* **Nginx Gateway (Alpine):** ~10 MB – 15 MB RAM (serves pre-compiled Vite static frontend).
+* **Blackbox Exporter (Go binary):** ~15 MB – 30 MB RAM (sub-second ICMP probes with negligible CPU).
+* **SNMP Exporter (Go binary):** ~25 MB – 50 MB RAM (lean OID walks without bloated tables).
+* **Prometheus TSDB (Go binary):** ~150 MB – 300 MB RAM (compresses time-series samples to ~1.5 bytes/sample; 50 devices with 30-day retention consumes only ~1 GB – 3 GB of disk space).
+* **Grafana OSS:** ~80 MB – 150 MB RAM.
 
 ---
 
@@ -163,3 +176,25 @@ tar -czf "${BACKUP_DIR}.tar.gz" -C "/backup" "$(basename "$BACKUP_DIR")"
 rm -rf "$BACKUP_DIR"
 echo "Backup saved to: ${BACKUP_DIR}.tar.gz"
 ```
+
+---
+
+## 8. Role-Based Access Control (RBAC) & User Management
+
+NetMonitor enforces a strict three-tier privilege model integrated with Grafana's user directory (`http://<SERVER_IP>:3000/admin/users`):
+
+| Operational Capability | Viewer | Editor | Admin |
+|---|:---:|:---:|:---:|
+| **View Real-Time Dashboard & Telemetry** | ✅ | ✅ | ✅ |
+| **View Topology Map** | ✅ | ✅ | ✅ |
+| **View Historical Analytics & Export CSV/PNG** | ✅ | ✅ | ✅ |
+| **Acknowledge Active Alerts** | ❌ | ✅ | ✅ |
+| **Add / Edit / Delete Network Devices** | ❌ | ✅ | ✅ |
+| **Trigger Topology Discovery & Save Layout** | ❌ | ✅ | ✅ |
+| **Modify Global Settings & Subnet CIDR** | ❌ | ❌ | ✅ |
+| **Configure SNMP Communities & LINE Notifications** | ❌ | ❌ | ✅ |
+| **Emergency Break-Glass Credential Access** | ❌ | ❌ | ✅ |
+
+### Emergency Break-Glass Account
+If Grafana is offline, unreachable, or in disaster recovery, operators can log in using the local break-glass credentials configured via `EMERGENCY_USERNAME` (default: `emergency`) and `EMERGENCY_PASSWORD` in `.env`. This immediately grants administrative privileges without external dependencies.
+

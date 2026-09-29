@@ -142,3 +142,126 @@ Dynamic module and auth routing per individual switch:
 | **Total Outbound Network Bandwidth** | `sum(rate(ifHCOutOctets[2m])) * 8 / 1000000` *(Output in Mbps)* |
 | **Multi-Vendor CPU Utilization (%)** | `hwEntityCpuUsage or cpmCPUTotal5minRev or rlCpuUtilDuringLast5Minutes or hpSwitchCpuStat or avg by(instance)(hrProcessorLoad)` |
 | **Active Network Interfaces Count** | `count by (instance)(ifOperStatus == 1)` |
+
+---
+
+## 6. Enterprise Switch & Host SNMP Configuration Snippets
+
+To enable telemetry collection by NetMonitor and SNMP Exporter, configure your managed devices with Read-Only (RO) access restricted to the NetMonitor server IP (e.g. `10.0.0.50`):
+
+### 6.1 Cisco IOS & IOS-XE (Catalyst 9000, 3850, 2960)
+```cisco
+! Restrict SNMP access to NetMonitor server IP via ACL
+ip access-list standard SNMP-MONITOR-ACCESS
+ permit host 10.0.0.50
+ deny any log
+
+! Configure SNMPv2c Community with Read-Only access
+snmp-server community YourCommunity RO SNMP-MONITOR-ACCESS
+
+! Enable CDP and LLDP for automated topology discovery
+cdp run
+lldp run
+
+! Optional: Enable SNMP traps
+snmp-server host 10.0.0.50 version 2c YourCommunity
+snmp-server enable traps
+```
+
+### 6.2 Cisco Small Business & Catalyst 1200 / 1300 / CBS350
+```cisco
+! Configure SNMP Community
+snmp-server community YourCommunity ro
+snmp-server host 10.0.0.50 version 2c YourCommunity
+
+! Enable LLDP for topology discovery
+lldp run
+```
+
+### 6.3 Aruba / HPE ProCurve (AOS-S & AOS-CX)
+```aruba
+! --- ArubaOS-S (Provision / 2930F / 2540) ---
+snmp-server community "YourCommunity" operator
+snmp-server host 10.0.0.50 "YourCommunity"
+lldp run
+
+! --- ArubaOS-CX (6000 / 6100 / 6200 / 6300 / 8320) ---
+snmp-server community YourCommunity
+snmp-server host 10.0.0.50 v2c community YourCommunity
+lldp
+```
+
+### 6.4 Huawei VRP (CloudEngine, S5700, S6700)
+```huawei
+system-view
+snmp-agent
+snmp-agent sys-info version v2c
+acl number 2001
+ rule 5 permit source 10.0.0.50 0
+ rule 10 deny
+snmp-agent community read YourCommunity acl 2001
+lldp enable
+```
+
+### 6.5 MikroTik RouterOS
+```routeros
+/snmp community add name=YourCommunity addresses=10.0.0.50/32 read-access=yes
+/snmp set enabled=yes
+/ip neighbor discovery-settings set discover-interface-list=all
+```
+
+### 6.6 Linux Servers (net-snmp `/etc/snmp/snmpd.conf`)
+```conf
+# Listen on all interfaces
+agentAddress udp:161
+
+# Grant Read-Only access to NetMonitor IP with community
+rocommunity YourCommunity 10.0.0.50
+
+# Expose system and storage metrics
+sysLocation DataCenter
+sysContact admin@example.com
+```
+
+---
+
+## 7. Environment Variables Reference (`.env`)
+
+All parameters configurable via `.env` or system environment:
+
+| Variable | Default Value | Description |
+|---|---|---|
+| `PORT` | `5001` | HTTP Port for the NetMonitor backend service |
+| `NODE_ENV` | `production` | Node.js execution environment (`production` / `development`) |
+| `DATA_DIR` | `./data` | Filesystem path for atomic `db.json` and performance caches |
+| `TARGETS_DIR` | `./data/targets` | Filesystem path where dynamic `blackbox/` and `snmp/` target files are generated |
+| `PROMETHEUS_URL` | `http://localhost:9090` | Internal Prometheus TSDB endpoint |
+| `SNMP_EXPORTER_URL` | `http://localhost:9116` | Internal SNMP Exporter endpoint |
+| `BLACKBOX_EXPORTER_URL` | `http://localhost:9115` | Internal Blackbox Exporter endpoint |
+| `GRAFANA_URL` | `http://localhost:3000` | Internal Grafana endpoint for proxying and user authentication |
+| `DEFAULT_SNMP_COMMUNITY` | `public` | Default fallback community for newly added devices |
+| `DEFAULT_SCAN_SUBNET` | `192.168.1.0/24` | Default CIDR subnet populated in the IP Scanner |
+| `EMERGENCY_USERNAME` | `emergency` | Local disaster-recovery administrator username |
+| `EMERGENCY_PASSWORD` | `emergency@netmon` | Local disaster-recovery administrator password |
+| `JWT_SECRET` | *(auto-generated / custom)* | Cryptographic signing secret for JWT tokens |
+
+---
+
+## 8. Core REST API Reference
+
+All backend endpoints are prefixed with `/api` and communicate via JSON:
+
+| Method | Endpoint | Auth Required | Description |
+|---|---|:---:|---|
+| `POST` | `/api/auth/login` | None | Authenticates operator against Grafana user directory or emergency break-glass |
+| `GET` | `/api/auth/me` | Cookie/Bearer | Validates active session and returns operator role (`admin`, `editor`, `viewer`) |
+| `POST` | `/api/auth/logout` | Session | Invalidates session and clears HTTP-only authentication cookies |
+| `GET` | `/api/storage` | Viewer | Retrieves devices, topology coordinates, and sanitized global settings |
+| `POST` | `/api/storage` | Editor/Admin | Atomically saves devices, settings, and topology layout to `data/db.json` |
+| `POST` | `/api/scan` | Editor/Admin | Performs fast ICMP ping sweep and SNMP sysDescr fingerprinting across CIDR range |
+| `POST` | `/api/topology/discover` | Editor/Admin | Crawls LLDP/CDP MIB tables from managed switches and generates network graph |
+| `GET` | `/api/telemetry/stream` | Viewer | Server-Sent Events (SSE) stream broadcasting real-time status and latencies |
+| `GET` | `/api/alerts` | Viewer | Retrieves active incident alerts and acknowledgment states |
+| `POST` | `/api/alerts/ack` | Editor/Admin | Acknowledges an active alert, stopping notification reminders |
+| `GET` | `/api/analytics/query` | Viewer | High-performance aggregated range query against Prometheus TSDB with caching |
+

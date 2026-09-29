@@ -29,10 +29,8 @@ Designed specifically to eliminate the overhead of complex, monolithic network m
 |---|---|---|
 | 🚀 [**Deployment Guide**](DEPLOYMENT_GUIDE.md) ([TH](DEPLOYMENT_GUIDE.th.md)) | Step-by-step turn-key installation, hardware sizing matrix, SSL/TLS, and disaster recovery. | System & Network Engineers |
 | 🏗️ [**Infrastructure Guide**](INFRA_INSTALLATION_GUIDE.md) ([TH](INFRA_INSTALLATION_GUIDE.th.md)) | Detailed setup for Prometheus TSDB, SNMP Exporter, Blackbox Exporter, and Grafana (Docker & Systemd). | Infrastructure & DevOps Engineers |
-| ⚙️ [**Configuration Reference**](CONFIG_REFERENCE.md) | Comprehensive `.env` settings, JSON device schema, target YAML specifications, and PromQL catalog. | DevOps & Platform Architects |
+| ⚙️ [**Configuration Reference**](CONFIG_REFERENCE.md) ([TH](CONFIG_REFERENCE.th.md)) | Comprehensive `.env` settings, JSON device schema, target YAML specifications, and PromQL catalog. | DevOps & Platform Architects |
 | 🛠️ [**Troubleshooting Playbook**](TROUBLESHOOTING.md) ([TH](TROUBLESHOOTING.th.md)) | Diagnostic workflows for SNMP timeouts (HTTP 500), 400 Bad Request, port conflicts, and permissions. | Operations & NOC Teams |
-| 👤 [**Administrator Guide**](ADMIN_GUIDE.md) | User management, RBAC access control, LINE Messaging API notifications, and emergency credentials. | Security & IT Administrators |
-| 💻 [**Developer Guide**](DEVELOPER_GUIDE.md) | Codebase architecture, state machines, API endpoints, and contributing workflows. | Software Engineers & Developers |
 
 ---
 

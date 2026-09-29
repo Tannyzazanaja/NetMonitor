@@ -29,10 +29,10 @@ services:
       resources:
         limits:
           cpus: '0.50'
-          memory: 256M
+          memory: 128M
         reservations:
-          cpus: '0.10'
-          memory: 64M
+          cpus: '0.05'
+          memory: 16M
 
   # ---------------------------------------------------------------------------
   # 2. Application Core Service (Node.js REST API & Real-time SSE Engine)
@@ -81,11 +81,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.50'
-          memory: 1024M
+          cpus: '1.00'
+          memory: 512M
         reservations:
-          cpus: '0.20'
-          memory: 256M
+          cpus: '0.10'
+          memory: 64M
 
   # ---------------------------------------------------------------------------
   # 3. Prometheus Time Series Database (TSDB)
@@ -112,11 +112,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.50'
-          memory: 1536M
+          cpus: '1.00'
+          memory: 768M
         reservations:
-          cpus: '0.25'
-          memory: 512M
+          cpus: '0.15'
+          memory: 128M
 
   # ---------------------------------------------------------------------------
   # 4. Blackbox Exporter (ICMP Ping Latency & Reachability Prober)
@@ -136,11 +136,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.50'
-          memory: 256M
+          cpus: '0.25'
+          memory: 128M
         reservations:
-          cpus: '0.05'
-          memory: 32M
+          cpus: '0.02'
+          memory: 16M
 
   # ---------------------------------------------------------------------------
   # 5. SNMP Exporter (High-Performance Hardware Metrics Proxy)
@@ -158,11 +158,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.00'
-          memory: 512M
+          cpus: '0.50'
+          memory: 256M
         reservations:
-          cpus: '0.10'
-          memory: 64M
+          cpus: '0.05'
+          memory: 32M
 
   # ---------------------------------------------------------------------------
   # 6. Grafana Analytics & Telemetry Dashboard (Optional Embedded Visualization)
@@ -186,11 +186,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.00'
-          memory: 512M
+          cpus: '0.50'
+          memory: 256M
         reservations:
-          cpus: '0.10'
-          memory: 128M
+          cpus: '0.05'
+          memory: 64M
 
 # =============================================================================
 # Persistent Data Volumes
