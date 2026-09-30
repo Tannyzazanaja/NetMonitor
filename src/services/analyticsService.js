@@ -37,8 +37,8 @@ export const ANALYTICS_MODULES = {
     color: '#a855f7', // Purple
     gradientFrom: 'rgba(168, 85, 247, 0.4)',
     gradientTo: 'rgba(168, 85, 247, 0.0)',
-    // Memory utilization in percentage across vendors
-    query: '(cpmCPUMemoryUsed / (cpmCPUMemoryUsed + cpmCPUMemoryFree) * 100) or (ciscoMemoryPoolUsed / (ciscoMemoryPoolUsed + ciscoMemoryPoolFree) * 100) or (sum by (instance) (hrStorageUsed) / sum by (instance) (hrStorageSize) * 100) or (hpSwitchMemoryAllocated / hpSwitchMemoryTotal * 100) or hwEntityMemUsage'
+    // Memory utilization in percentage across vendors (Cisco, HP/Aruba, Huawei, Ruckus, Host Resources)
+    query: 'snAgGblDynMemUtil or hwEntityMemUsage or (cpmCPUMemoryUsed / (cpmCPUMemoryUsed + cpmCPUMemoryFree) * 100) or (ciscoMemoryPoolUsed / (ciscoMemoryPoolUsed + ciscoMemoryPoolFree) * 100) or (sum by (instance) (hrStorageUsed) / sum by (instance) (hrStorageSize) * 100) or (hpSwitchMemoryAllocated / hpSwitchMemoryTotal * 100)'
   },
   bandwidth: {
     id: 'bandwidth',

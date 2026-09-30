@@ -1021,6 +1021,7 @@ function queryDevicePerformance(ip, community) {
       '1.3.6.1.4.1.11.2.14.11.5.1.9.6.1.0', // hpSwitchCpuStat
       '1.3.6.1.4.1.6574.1.1.0', // synoCPU
       '1.3.6.1.4.1.6574.1.3.0', // synoMemory
+      '1.3.6.1.4.1.1991.1.1.2.1.53.0', // ruckus snAgGblDynMemUtil (%)
     ];
 
     const tableRoots = [
@@ -1140,6 +1141,14 @@ function queryDevicePerformance(ip, community) {
         // 4.3 Synology Memory
         if (memory === null && map['1.3.6.1.4.1.6574.1.3.0']) {
           memory = parseFloat(map['1.3.6.1.4.1.6574.1.3.0']);
+        }
+
+        // 4.4 Ruckus ICX Memory (%)
+        if (memory === null && map['1.3.6.1.4.1.1991.1.1.2.1.53.0']) {
+          const rkMem = parseFloat(map['1.3.6.1.4.1.1991.1.1.2.1.53.0']);
+          if (!isNaN(rkMem) && rkMem >= 0 && rkMem <= 100) {
+            memory = rkMem;
+          }
         }
 
         // 5. Environmental: Temperature (°C)

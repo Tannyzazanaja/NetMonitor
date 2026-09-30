@@ -205,8 +205,8 @@ export class PrometheusClient {
       const [rCpu, rMemUsed, rMemFree, rSysUpTime] = await Promise.allSettled([
         // Try Huawei hwEntityCpuUsage OR Cisco cpmCPUTotal5minRev OR Cisco SMB rlCpuUtilDuringLast5Minutes OR HP hpSwitchCpuStat OR generic hrProcessorLoad
         this.instantQuery(`hwEntityCpuUsage{instance=~".*${cleanIp}.*"} or cpmCPUTotal5minRev{instance=~".*${cleanIp}.*"} or rlCpuUtilDuringLast5Minutes{instance=~".*${cleanIp}.*"} or hpSwitchCpuStat{instance=~".*${cleanIp}.*"} or avg by(instance)(hrProcessorLoad{instance=~".*${cleanIp}.*"})`),
-        // Try Huawei hwEntityMemUsage OR Cisco cpmCPUMemoryUsed OR ciscoMemoryPoolUsed OR HP hpSwitchMemoryAllocated OR generic hrStorageUsed
-        this.instantQuery(`hwEntityMemUsage{instance=~".*${cleanIp}.*"} or cpmCPUMemoryUsed{instance=~".*${cleanIp}.*"} or ciscoMemoryPoolUsed{instance=~".*${cleanIp}.*"} or hpSwitchMemoryAllocated{instance=~".*${cleanIp}.*"} or sum by(instance)(hrStorageUsed{instance=~".*${cleanIp}.*"})`),
+        // Try Ruckus snAgGblDynMemUtil OR Huawei hwEntityMemUsage OR Cisco cpmCPUMemoryUsed OR ciscoMemoryPoolUsed OR HP hpSwitchMemoryAllocated OR generic hrStorageUsed
+        this.instantQuery(`snAgGblDynMemUtil{instance=~".*${cleanIp}.*"} or hwEntityMemUsage{instance=~".*${cleanIp}.*"} or cpmCPUMemoryUsed{instance=~".*${cleanIp}.*"} or ciscoMemoryPoolUsed{instance=~".*${cleanIp}.*"} or hpSwitchMemoryAllocated{instance=~".*${cleanIp}.*"} or sum by(instance)(hrStorageUsed{instance=~".*${cleanIp}.*"})`),
         // Try Cisco cpmCPUMemoryFree OR ciscoMemoryPoolFree OR HP hpSwitchMemoryTotal OR generic hrStorageSize
         this.instantQuery(`cpmCPUMemoryFree{instance=~".*${cleanIp}.*"} or ciscoMemoryPoolFree{instance=~".*${cleanIp}.*"} or hpSwitchMemoryTotal{instance=~".*${cleanIp}.*"} or sum by(instance)(hrStorageSize{instance=~".*${cleanIp}.*"})`),
         // Uptime (sysUpTime)
@@ -227,8 +227,8 @@ export class PrometheusClient {
         const usedMetric = rMemUsed.value[0].metric;
         const used = parseFloat(rMemUsed.value[0].value?.[1]);
 
-        if (usedMetric && usedMetric.__name__ === 'hwEntityMemUsage') {
-          memory = used; // Huawei returns percentage directly
+        if (usedMetric && (usedMetric.__name__ === 'hwEntityMemUsage' || usedMetric.__name__ === 'snAgGblDynMemUtil')) {
+          memory = used; // Huawei & Ruckus return percentage directly
         } else if (rMemFree.status === 'fulfilled' && rMemFree.value?.[0]) {
           const freeMetric = rMemFree.value[0].metric;
           const freeOrSize = parseFloat(rMemFree.value[0].value?.[1]);
@@ -277,9 +277,9 @@ export class PrometheusClient {
         this.instantQuery(
           'hwEntityCpuUsage or cpmCPUTotal5minRev or rlCpuUtilDuringLast5Minutes or hpSwitchCpuStat or avg by(instance)(hrProcessorLoad)'
         ),
-        // Memory used metrics
+        // Memory used metrics (or direct percentage metrics)
         this.instantQuery(
-          'hwEntityMemUsage or cpmCPUMemoryUsed or ciscoMemoryPoolUsed or hpSwitchMemoryAllocated or sum by(instance)(hrStorageUsed)'
+          'snAgGblDynMemUtil or hwEntityMemUsage or cpmCPUMemoryUsed or ciscoMemoryPoolUsed or hpSwitchMemoryAllocated or sum by(instance)(hrStorageUsed)'
         ),
         // Memory free or total size metrics
         this.instantQuery(
@@ -343,8 +343,8 @@ export class PrometheusClient {
         const usedObj = memUsedMap[ip];
         const entry = ensureIpEntry(ip);
 
-        if (usedObj.metricName === 'hwEntityMemUsage') {
-          // Huawei returns utilization directly in %
+        if (usedObj.metricName === 'hwEntityMemUsage' || usedObj.metricName === 'snAgGblDynMemUtil') {
+          // Huawei & Ruckus return utilization directly in %
           entry.memory = Math.min(Math.max(usedObj.val, 0), 100);
         } else if (memFreeMap[ip]) {
           const freeObj = memFreeMap[ip];
