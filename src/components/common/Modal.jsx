@@ -25,7 +25,14 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 560 }) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="modal-box" style={{ maxWidth }}>
+      <div
+        className="modal-box"
+        style={{
+          maxWidth: `min(${typeof maxWidth === 'number' ? `${maxWidth}px` : maxWidth}, calc(100vw - 24px))`,
+          width: '100%',
+          boxSizing: 'border-box',
+        }}
+      >
         <div className="modal-header">
           <div className="modal-title">{title}</div>
           <button

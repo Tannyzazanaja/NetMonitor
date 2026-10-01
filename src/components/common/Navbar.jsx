@@ -46,12 +46,14 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }) {
       }}
     >
       {/* Left: Org Title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: '1 1 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           <div
             style={{
               width: 34,
               height: 34,
+              minWidth: 34,
+              flexShrink: 0,
               borderRadius: 'var(--radius-sm)',
               background: 'linear-gradient(135deg, rgba(0,212,255,0.2) 0%, rgba(139,92,246,0.2) 100%)',
               border: '1px solid rgba(0,212,255,0.4)',
@@ -63,11 +65,32 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }) {
           >
             <Activity size={18} color="var(--primary)" />
           </div>
-          <div>
-            <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: 15, color: 'var(--text-primary)', letterSpacing: '0.5px' }}>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <div
+              className="navbar-brand-title"
+              style={{
+                fontFamily: 'var(--font-heading)',
+                fontWeight: 800,
+                fontSize: 'clamp(13px, 3.5vw, 15px)',
+                color: 'var(--text-primary)',
+                letterSpacing: '0.5px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
               {settings.orgName}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            <div
+              className="navbar-subtitle"
+              style={{
+                fontSize: 11,
+                color: 'var(--text-muted)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
               Infrastructure Telemetry & Topology
             </div>
           </div>
@@ -75,7 +98,7 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }) {
       </div>
 
       {/* Right: Metrics, User Profile & System Status */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
         {/* Device Status Summary */}
         <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)' }}>
@@ -115,20 +138,24 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }) {
         {/* Logged in User Badge & Logout */}
         {user && (
           <div
+            className="navbar-user-box"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              padding: '4px 10px 4px 6px',
+              padding: '4px 8px 4px 6px',
               borderRadius: 'var(--radius)',
               background: 'rgba(15, 23, 42, 0.75)',
               border: '1px solid var(--border)',
+              flexShrink: 0,
             }}
           >
             <div
               style={{
                 width: 24,
                 height: 24,
+                minWidth: 24,
+                flexShrink: 0,
                 borderRadius: '50%',
                 background: user.isEmergency ? 'rgba(245, 158, 11, 0.25)' : (user.role === 'Admin' ? 'rgba(0, 212, 255, 0.2)' : 'rgba(249, 115, 22, 0.2)'),
                 border: `1px solid ${user.isEmergency ? 'rgba(245, 158, 11, 0.5)' : (user.role === 'Admin' ? 'rgba(0, 212, 255, 0.4)' : 'rgba(249, 115, 22, 0.4)')}`,
@@ -139,12 +166,36 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }) {
             >
               <User size={13} color={user.isEmergency ? '#f59e0b' : (user.role === 'Admin' ? 'var(--primary)' : '#fb923c')} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1, minWidth: 0 }}>
+              <div
+                className="navbar-username"
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  maxWidth: 90,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
                 {user.name || user.login}
               </div>
-              <div style={{ fontSize: 10, color: user.isEmergency ? '#fbbf24' : (user.role === 'Admin' ? 'var(--cyan)' : '#fb923c'), fontWeight: 600 }}>
-                {user.isEmergency ? '🚨 Admin (Break-Glass)' : `${user.role} (Grafana SSO)`}
+              <div
+                className="navbar-user-role"
+                style={{
+                  fontSize: 10,
+                  color: user.isEmergency ? '#fbbf24' : (user.role === 'Admin' ? 'var(--cyan)' : '#fb923c'),
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span className="navbar-role-full">
+                  {user.isEmergency ? '🚨 Admin (Break-Glass)' : `${user.role} (Grafana SSO)`}
+                </span>
+                <span className="navbar-role-short">
+                  {user.isEmergency ? '🚨 Break-Glass' : user.role}
+                </span>
               </div>
             </div>
             <button
@@ -158,8 +209,9 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }) {
                 borderRadius: '4px',
                 display: 'flex',
                 alignItems: 'center',
-                marginLeft: 4,
+                marginLeft: 2,
                 transition: 'color 0.2s',
+                flexShrink: 0,
               }}
               title="ออกจากระบบ (Sign Out)"
               onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--red)')}

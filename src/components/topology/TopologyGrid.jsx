@@ -204,7 +204,7 @@ export function TopologyGrid({ onOpenAddDevice }) {
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{subtitle}</div>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: 16 }}>
           {nodes.map(renderInfraCard)}
         </div>
       </div>

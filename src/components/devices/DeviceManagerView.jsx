@@ -99,7 +99,7 @@ export function DeviceManagerView({ onOpenAddDevice, onOpenEditDevice, onOpenExp
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <button
             onClick={() => setIsScannerOpen(true)}
             className="btn btn-secondary"
@@ -148,8 +148,8 @@ export function DeviceManagerView({ onOpenAddDevice, onOpenEditDevice, onOpenExp
           </div>
 
           {/* Search & Type Select */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
+            <div style={{ position: 'relative', flex: '1 1 150px', minWidth: 130 }}>
               <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--text-muted)' }} />
               <input
                 type="text"
@@ -157,7 +157,7 @@ export function DeviceManagerView({ onOpenAddDevice, onOpenEditDevice, onOpenExp
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="form-input"
-                style={{ paddingLeft: 30, fontSize: 12, width: 200 }}
+                style={{ paddingLeft: 30, fontSize: 12, width: '100%' }}
               />
             </div>
 
@@ -165,7 +165,7 @@ export function DeviceManagerView({ onOpenAddDevice, onOpenEditDevice, onOpenExp
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
               className="form-select"
-              style={{ fontSize: 12, width: 170 }}
+              style={{ fontSize: 12, flex: '1 1 140px', minWidth: 130 }}
             >
               <option value="all">ชนิดอุปกรณ์ทั้งหมด</option>
               <option value="firewall">🛡️ Firewall</option>

@@ -66,7 +66,6 @@
   5. **Latency Trend RTT (`latency`):** แนวโน้มค่าความหน่วงของเครือข่าย (Ping Latency) ในหน่วยมิลลิวินาที (ms) ผ่าน Blackbox ICMP (`probe_duration_seconds * 1000`)
   6. **Packet Loss Trend (`packet_loss`):** อัตราการสูญหายของแพ็กเก็ต ICMP ในรูปแบบเปอร์เซ็นต์ (`(1 - probe_success) * 100`)
   7. **Device Availability SLA (`availability`):** ค่าความพร้อมใช้งานของอุปกรณ์ตามเกณฑ์ SLA ราย 5 นาที (`avg_over_time(probe_success[5m]) * 100`)
-* **ส่งออกข้อมูลได้ทันที:** ส่งออกข้อมูลสถิติย้อนหลังเป็นไฟล์ CSV (Timestamp มาตรฐาน ISO 8601) และส่งออกภาพกราฟความละเอียดสูงเป็นไฟล์ PNG
 * **ระบบแคชอัจฉริยะ:** Client-side Cache อายุ 5 นาที พร้อมคำนวณ Step อัตโนมัติตามช่วงเวลา เพื่อการเปิดดูกราฟที่รวดเร็วระดับเสี้ยววินาที
 
 ### 🗺️ แผนผังเครือข่ายกึ่งอัตโนมัติ (Semi-Automatic Topology Discovery)

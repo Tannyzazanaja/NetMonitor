@@ -235,7 +235,7 @@ export function DeviceFormModal({ isOpen, onClose, initialIp = null, initialData
               <span>IP Address <span style={{ color: 'var(--red)' }}>*</span></span>
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>IPv4 ที่ต้องการมอนิเตอร์</span>
             </label>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <input
                 type="text"
                 value={ip}
@@ -243,7 +243,7 @@ export function DeviceFormModal({ isOpen, onClose, initialIp = null, initialData
                 placeholder="เช่น 192.168.1.10 หรือ 10.0.0.1"
                 className="form-input"
                 style={{
-                  flex: 1,
+                  flex: '1 1 180px',
                   fontFamily: 'var(--font-mono)',
                   borderColor: isDuplicateIp ? 'var(--red)' : undefined,
                   background: isDuplicateIp ? 'rgba(239, 68, 68, 0.05)' : undefined,
@@ -256,7 +256,7 @@ export function DeviceFormModal({ isOpen, onClose, initialIp = null, initialData
                 onClick={handleAutoDetect}
                 disabled={isDetecting || !ip.trim()}
                 className="btn btn-secondary"
-                style={{ whiteSpace: 'nowrap', gap: 6, minWidth: 120 }}
+                style={{ whiteSpace: 'nowrap', gap: 6, flexShrink: 0 }}
                 title="ดึงข้อมูลชื่อและรุ่นผ่าน SNMP อัตโนมัติ"
               >
                 <Zap size={14} color={isDetecting ? 'var(--text-muted)' : 'var(--amber)'} />
@@ -366,7 +366,7 @@ export function DeviceFormModal({ isOpen, onClose, initialIp = null, initialData
           </div>
 
           {/* Role & Vendor */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="form-grid-2">
             <div className="input-group">
               <label className="input-label">ประเภทอุปกรณ์ (Device Role)</label>
               <select
@@ -407,7 +407,7 @@ export function DeviceFormModal({ isOpen, onClose, initialIp = null, initialData
           </div>
 
           {/* Model & Location */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="form-grid-2">
             <div className="input-group">
               <label className="input-label">รุ่นอุปกรณ์ (Model / Series)</label>
               <input
@@ -445,7 +445,7 @@ export function DeviceFormModal({ isOpen, onClose, initialIp = null, initialData
               <span>การตั้งค่า SNMP Connection</span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-grid-2">
               <div className="input-group">
                 <label className="input-label" style={{ fontSize: 11 }}>SNMP Community Override</label>
                 <input

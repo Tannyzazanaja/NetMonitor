@@ -187,7 +187,7 @@ NetMonitor enforces a strict three-tier privilege model integrated with Grafana'
 |---|:---:|:---:|:---:|
 | **View Real-Time Dashboard & Telemetry** | ✅ | ✅ | ✅ |
 | **View Topology Map** | ✅ | ✅ | ✅ |
-| **View Historical Analytics & Export CSV/PNG** | ✅ | ✅ | ✅ |
+| **View Historical Analytics** | ✅ | ✅ | ✅ |
 | **Acknowledge Active Alerts** | ❌ | ✅ | ✅ |
 | **Add / Edit / Delete Network Devices** | ❌ | ✅ | ✅ |
 | **Trigger Topology Discovery & Save Layout** | ❌ | ✅ | ✅ |

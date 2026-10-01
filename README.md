@@ -66,7 +66,6 @@ Designed specifically to eliminate the overhead of complex, monolithic network m
   5. **Latency Trend RTT (`latency`):** Round-trip ping time in milliseconds via Prometheus Blackbox ICMP (`probe_duration_seconds * 1000`).
   6. **Packet Loss Trend (`packet_loss`):** ICMP packet drop percentage calculated via `(1 - probe_success) * 100`.
   7. **Device Availability SLA (`availability`):** Rolling availability percentage based on `avg_over_time(probe_success[5m]) * 100`.
-* **Export Options:** One-click CSV export with standard ISO 8601 timestamps and high-resolution PNG chart export.
 * **In-Memory Cache:** 5-minute client-side query cache with dynamic optimal step calculation for sub-second chart rendering.
 
 ### 🗺️ Semi-Automatic Topology Discovery

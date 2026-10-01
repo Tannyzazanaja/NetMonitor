@@ -12,13 +12,14 @@ import {
   PlusCircle,
   User,
   LogOut,
+  X,
 } from 'lucide-react';
 import { useDevices } from '../../context/DeviceContext';
 import { useAlerts } from '../../context/AlertContext';
 import { useTopology } from '../../context/TopologyContext';
 import { useAuth } from '../../context/AuthContext';
 
-export function Sidebar({ activeTab, setActiveTab, onOpenAddDevice, isMobileMenuOpen, isCollapsed }) {
+export function Sidebar({ activeTab, setActiveTab, onOpenAddDevice, isMobileMenuOpen, isCollapsed, onCloseMobile }) {
   const { devices } = useDevices();
   const { topoLinks } = useTopology();
   const { criticalCount } = useAlerts();
@@ -44,13 +45,14 @@ export function Sidebar({ activeTab, setActiveTab, onOpenAddDevice, isMobileMenu
         top: 0,
         left: 0,
         bottom: 0,
-        width: isCollapsed ? 0 : 'var(--sidebar-width)', transition: 'width 0.3s ease',
-        background: 'rgba(7, 11, 24, 0.95)',
-        backdropFilter: 'blur(16px)',
+        width: isCollapsed ? 0 : 'var(--sidebar-width)',
+        transition: 'width 0.3s ease, transform 0.3s ease-in-out',
+        background: isMobileMenuOpen ? '#0b1022' : 'rgba(7, 11, 24, 0.95)',
+        backdropFilter: isMobileMenuOpen ? 'none' : 'blur(16px)',
         borderRight: isCollapsed ? 'none' : '1px solid var(--border)',
         display: 'flex',
         flexDirection: 'column',
-        zIndex: 101,
+        zIndex: isMobileMenuOpen ? 1100 : 101,
         overflowX: 'hidden',
       }}
     >
@@ -61,7 +63,8 @@ export function Sidebar({ activeTab, setActiveTab, onOpenAddDevice, isMobileMenu
           display: 'flex',
           alignItems: 'center',
           gap: 12,
-          padding: isCollapsed ? 0 : '0 20px', justifyContent: isCollapsed ? "center" : "flex-start",
+          padding: isCollapsed ? 0 : '0 16px',
+          justifyContent: isCollapsed ? "center" : "flex-start",
           borderBottom: '1px solid var(--border)',
         }}
       >
@@ -69,32 +72,57 @@ export function Sidebar({ activeTab, setActiveTab, onOpenAddDevice, isMobileMenu
           style={{
             width: 32,
             height: 32,
+            minWidth: 32,
             borderRadius: 'var(--radius-sm)',
             background: 'linear-gradient(135deg, #00d4ff 0%, #3b82f6 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             boxShadow: '0 0 16px rgba(0, 212, 255, 0.4)',
+            flexShrink: 0,
           }}
         >
           <Network size={18} color="#030712" strokeWidth={2.5} />
         </div>
-        {!isCollapsed && (<div>
-          <div
+        {!isCollapsed && (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontFamily: 'var(--font-heading)',
+                fontWeight: 800,
+                fontSize: 16,
+                letterSpacing: '0.5px',
+                color: 'var(--text-primary)',
+              }}
+            >
+              NetMonitor
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 700, letterSpacing: '1px', whiteSpace: 'nowrap' }}>
+              IT SUPPORT&SERVICE
+            </div>
+          </div>
+        )}
+        {onCloseMobile && (
+          <button
+            onClick={onCloseMobile}
+            className="mobile-sidebar-close-btn"
             style={{
-              fontFamily: 'var(--font-heading)',
-              fontWeight: 800,
-              fontSize: 16,
-              letterSpacing: '0.5px',
-              color: 'var(--text-primary)',
+              marginLeft: 'auto',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              padding: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
+            title="ปิดเมนู (Close Menu)"
           >
-            NetMonitor
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--primary)', fontWeight: 700, letterSpacing: '1px', whiteSpace: 'nowrap' }}>
-            IT SUPPORT&SERVICE
-          </div>
-        </div>)}
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Quick Action: Add Device */}

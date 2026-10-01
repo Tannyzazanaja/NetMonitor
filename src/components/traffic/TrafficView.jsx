@@ -395,7 +395,7 @@ export function TrafficView() {
       <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
         <Network size={18} color="var(--primary)" /> Individual Switch Traffic
       </h3>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: 16 }}>
         {devices.map((dev) => {
           const isOffline = dev.status !== 'online';
           const cleanIp = (dev.ip || '').trim().replace(/:\d+$/, '');

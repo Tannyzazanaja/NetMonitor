@@ -35,9 +35,9 @@ function MainApp() {
 
   const handleMenuClick = () => {
     if (window.innerWidth <= 768) {
-      setIsMobileMenuOpen(true);
+      setIsMobileMenuOpen((prev) => !prev);
     } else {
-      setIsDesktopSidebarCollapsed(!isDesktopSidebarCollapsed);
+      setIsDesktopSidebarCollapsed((prev) => !prev);
     }
   };
 
@@ -89,6 +89,7 @@ function MainApp() {
         onOpenAddDevice={() => { handleOpenAdd(); setIsMobileMenuOpen(false); }}
         isMobileMenuOpen={isMobileMenuOpen}
         isCollapsed={isDesktopSidebarCollapsed}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main Content Area */}

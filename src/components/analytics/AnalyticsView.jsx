@@ -9,9 +9,6 @@ import {
   Shield,
   Clock,
   Calendar,
-  Download,
-  FileSpreadsheet,
-  Image as ImageIcon,
   RotateCw,
   Search,
   Server,
@@ -43,10 +40,7 @@ import {
   calculateTimeRange,
   formatTimestamp,
   calculateStatistics,
-  fetchAnalyticsData,
-  formatDataToCsv,
-  downloadCsvFile,
-  downloadChartPng
+  fetchAnalyticsData
 } from '../../services/analyticsService';
 
 ChartJS.register(
@@ -318,21 +312,6 @@ export function AnalyticsView() {
     };
   }, [moduleDef]);
 
-  // Export CSV Handler
-  const handleExportCsv = () => {
-    if (!seriesPoints || seriesPoints.length === 0) return;
-    const durationSec = analyticsData?.timeParams?.durationSec || 3600;
-    const csvContent = formatDataToCsv(seriesPoints, durationSec, selectedDeviceIp);
-    const filename = `analytics_${activeModule}_${selectedDeviceIp}_${timeRange}.csv`;
-    downloadCsvFile(csvContent, filename);
-  };
-
-  // Export PNG Handler
-  const handleExportPng = () => {
-    const filename = `analytics_${activeModule}_${selectedDeviceIp}_${timeRange}.png`;
-    downloadChartPng(chartRef, filename);
-  };
-
   // Capacity breakdown rows for the table
   const deviceBreakdown = useMemo(() => {
     if (!analyticsData || !analyticsData.deviceSeriesMap) return [];
@@ -440,42 +419,6 @@ export function AnalyticsView() {
             <RotateCw size={14} className={refreshing ? 'spin' : ''} />
             {refreshing ? 'กำลังดึงข้อมูล...' : 'รีเฟรช'}
           </button>
-
-          <button
-            onClick={handleExportCsv}
-            disabled={!seriesPoints || seriesPoints.length === 0}
-            className="btn btn-secondary"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 12,
-              padding: '8px 14px',
-              borderRadius: 'var(--radius-sm)'
-            }}
-            title="ดาวน์โหลดข้อมูลย้อนหลังรูปแบบ CSV (Timestamp, Value)"
-          >
-            <FileSpreadsheet size={14} color="var(--emerald)" />
-            Export CSV
-          </button>
-
-          <button
-            onClick={handleExportPng}
-            disabled={!seriesPoints || seriesPoints.length === 0}
-            className="btn btn-secondary"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 12,
-              padding: '8px 14px',
-              borderRadius: 'var(--radius-sm)'
-            }}
-            title="ดาวน์โหลดรูปภาพกราฟความละเอียดสูง (PNG)"
-          >
-            <ImageIcon size={14} color="var(--cyan)" />
-            Export PNG
-          </button>
         </div>
       </div>
 
@@ -564,7 +507,8 @@ export function AnalyticsView() {
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
-                minWidth: 240,
+                minWidth: 'min(240px, 100%)',
+                maxWidth: '100%',
                 justifyContent: 'space-between'
               }}
             >
@@ -587,7 +531,7 @@ export function AnalyticsView() {
                   top: '100%',
                   left: 0,
                   marginTop: 6,
-                  width: 320,
+                  width: 'min(320px, calc(100vw - 32px))',
                   maxHeight: 380,
                   background: 'rgba(10, 15, 30, 0.98)',
                   backdropFilter: 'blur(16px)',

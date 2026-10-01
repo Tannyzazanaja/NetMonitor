@@ -410,7 +410,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
     scales: {
       x: {
         grid: { color: 'rgba(148, 163, 184, 0.06)' },
-        ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } },
+        ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 6, autoSkip: true },
       },
       y: {
         grid: { color: 'rgba(148, 163, 184, 0.06)' },
@@ -576,13 +576,15 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
       )}
 
       {/* 1. Main KPI Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+      <div className="kpi-stats-grid">
         {/* Card 1: Total Devices */}
-        <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div className="panel min-w-0" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div
             style={{
               width: 48,
               height: 48,
+              minWidth: 48,
+              flexShrink: 0,
               borderRadius: 'var(--radius)',
               background: 'rgba(0, 212, 255, 0.12)',
               border: '1px solid rgba(0, 212, 255, 0.3)',
@@ -593,7 +595,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
           >
             <Server size={24} color="var(--primary)" />
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Total Devices</div>
             <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>
               {devices.length}
@@ -602,11 +604,13 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
         </div>
 
         {/* Card 2: Online */}
-        <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div className="panel min-w-0" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div
             style={{
               width: 48,
               height: 48,
+              minWidth: 48,
+              flexShrink: 0,
               borderRadius: 'var(--radius)',
               background: 'rgba(16, 185, 129, 0.12)',
               border: '1px solid rgba(16, 185, 129, 0.3)',
@@ -617,7 +621,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
           >
             <CheckCircle2 size={24} color="var(--green)" />
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Online Status</div>
             <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 800, color: 'var(--green)' }}>
               {onlineCount}
@@ -626,11 +630,13 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
         </div>
 
         {/* Card 3: Offline / Issues */}
-        <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div className="panel min-w-0" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div
             style={{
               width: 48,
               height: 48,
+              minWidth: 48,
+              flexShrink: 0,
               borderRadius: 'var(--radius)',
               background: offlineCount > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)',
               border: offlineCount > 0 ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)',
@@ -641,7 +647,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
           >
             <AlertTriangle size={24} color={offlineCount > 0 ? 'var(--red)' : 'var(--amber)'} />
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Issues / Offline</div>
             <div
               style={{
@@ -657,11 +663,13 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
         </div>
 
         {/* Card 4: Total Overall Bandwidth */}
-        <div className="panel" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div className="panel min-w-0" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div
             style={{
               width: 48,
               height: 48,
+              minWidth: 48,
+              flexShrink: 0,
               borderRadius: 'var(--radius)',
               background: 'linear-gradient(135deg, rgba(0,212,255,0.15) 0%, rgba(168,85,247,0.15) 100%)',
               border: '1px solid rgba(0, 212, 255, 0.4)',
@@ -672,7 +680,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
           >
             <Zap size={24} color="var(--primary)" />
           </div>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>WAN Internet Throughput</div>
             <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 800, color: 'var(--cyan)' }}>
               {trafficStats.totalBandwidth} <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>MB/s</span>
@@ -723,13 +731,13 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
           <div
             style={{
               width: '100%',
-              maxWidth: 480,
+              maxWidth: 'min(480px, calc(100vw - 24px))',
               maxHeight: '90vh',
               overflowY: 'auto',
               background: 'var(--bg-surface)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-lg)',
-              padding: '22px',
+              padding: '18px 16px',
               boxShadow: '0 16px 48px rgba(0, 0, 0, 0.6)',
               display: 'flex',
               flexDirection: 'column',
@@ -805,7 +813,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
             )}
 
             {/* Primary Telemetry Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            <div className="matrix-telemetry-grid">
               <div style={{ background: 'var(--bg-card)', padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Ping Latency</div>
                 <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--primary)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
@@ -863,7 +871,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
             </div>
 
             {/* Hardware & Environment (Temperature, PSU, Fans, PoE) */}
-            <div style={{ display: 'grid', gridTemplateColumns: selectedMatrixDevice.poe ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: 8 }}>
+            <div className="matrix-hardware-grid">
               {/* Temperature */}
               <div style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text-muted)' }}>
@@ -1098,7 +1106,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
             </select>
 
             {/* Search Input */}
-            <div style={{ position: 'relative', width: 140 }}>
+            <div style={{ position: 'relative', flex: '1 1 130px', minWidth: 110, maxWidth: 220 }}>
               <Search size={12} color="var(--text-muted)" style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 type="text"
@@ -1271,23 +1279,20 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
 
       {/* 3. OVERALL TRAFFIC IN / OUT HIGHLIGHT BAR */}
       <div
-        className="panel"
+        className="panel wan-highlight-grid"
         style={{
           background: 'linear-gradient(135deg, rgba(10, 18, 38, 0.95) 0%, rgba(18, 12, 34, 0.95) 100%)',
           border: '1px solid rgba(0, 212, 255, 0.25)',
-          padding: '20px 24px',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-          gap: 20,
-          alignItems: 'center',
         }}
       >
         {/* Metric 1: Overall Traffic IN */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
           <div
             style={{
               width: 48,
               height: 48,
+              minWidth: 48,
+              flexShrink: 0,
               borderRadius: 'var(--radius)',
               background: 'rgba(0, 212, 255, 0.15)',
               border: '1px solid rgba(0, 212, 255, 0.4)',
@@ -1299,26 +1304,28 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
           >
             <ArrowDownLeft size={26} color="var(--primary)" />
           </div>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <span>WAN TRAFFIC IN (Download)</span>
               <span className="status-dot online"></span>
             </div>
-            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 28, fontWeight: 900, color: 'var(--primary)', lineHeight: 1.1, marginTop: 2 }}>
-              {trafficStats.currentIn} <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>MB/s</span>
+            <div className="wan-metric-value" style={{ color: 'var(--primary)' }}>
+              <span>{trafficStats.currentIn}</span> <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>MB/s</span>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Peak Inbound: <strong style={{ color: 'var(--text-primary)' }}>{trafficStats.peakIn} MB/s</strong>
             </div>
           </div>
         </div>
 
         {/* Metric 2: Overall Traffic OUT */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
           <div
             style={{
               width: 48,
               height: 48,
+              minWidth: 48,
+              flexShrink: 0,
               borderRadius: 'var(--radius)',
               background: 'rgba(168, 85, 247, 0.15)',
               border: '1px solid rgba(168, 85, 247, 0.4)',
@@ -1330,15 +1337,15 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
           >
             <ArrowUpRight size={26} color="#a855f7" />
           </div>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <span>WAN TRAFFIC OUT (Upload)</span>
               <span className="status-dot online"></span>
             </div>
-            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 28, fontWeight: 900, color: '#c084fc', lineHeight: 1.1, marginTop: 2 }}>
-              {trafficStats.currentOut} <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>MB/s</span>
+            <div className="wan-metric-value" style={{ color: '#c084fc' }}>
+              <span>{trafficStats.currentOut}</span> <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>MB/s</span>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Peak Outbound: <strong style={{ color: 'var(--text-primary)' }}>{trafficStats.peakOut} MB/s</strong>
             </div>
           </div>
@@ -1347,20 +1354,21 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
         {/* Metric 3: WAN Gateway & Ratio */}
         <div
           style={{
-            padding: '12px 18px',
+            padding: '12px 16px',
             borderRadius: 'var(--radius)',
             background: 'rgba(6, 9, 19, 0.6)',
             border: '1px solid var(--border)',
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
+            minWidth: 0,
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)', flexWrap: 'wrap', gap: 4 }}>
             <span>WAN Gateway:</span>
-            <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{settings.wanInterface || 'Auto (Core / Uplinks)'}</strong>
+            <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>{settings.wanInterface || 'Auto (Core / Uplinks)'}</strong>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-secondary)', flexWrap: 'wrap', gap: 4 }}>
             <span>Traffic In/Out Ratio:</span>
             <strong style={{ color: 'var(--cyan)' }}>
               {((trafficStats.currentIn / (trafficStats.totalBandwidth || 1)) * 100).toFixed(0)}% In / {((trafficStats.currentOut / (trafficStats.totalBandwidth || 1)) * 100).toFixed(0)}% Out
@@ -1382,15 +1390,15 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
       </div>
 
       {/* 3. Middle Row: Realtime Traffic (50%), Device Status Circle (25%), Quick Alerts (25%) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) minmax(0, 1.1fr) minmax(0, 1.1fr)', gap: 20 }}>
+      <div className="summary-cards-grid">
         {/* Col 1: Realtime Traffic Chart */}
-        <div className="panel" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className="panel min-w-0" style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="panel-header">
-            <div className="panel-title">
-              <Activity size={18} color="var(--primary)" />
-              <span>WAN Gateway In / Out Realtime Stream</span>
+            <div className="panel-title" style={{ minWidth: 0 }}>
+              <Activity size={18} color="var(--primary)" style={{ flexShrink: 0 }} />
+              <span style={{ wordBreak: 'break-word' }}>WAN Gateway In / Out Realtime Stream</span>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button
                 onClick={() => onSelectTab('grafana')}
                 className="btn btn-secondary"
@@ -1404,16 +1412,16 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
               </button>
             </div>
           </div>
-          <div style={{ height: 240, position: 'relative' }}>
+          <div style={{ height: 240, position: 'relative', width: '100%', minWidth: 0 }}>
             <Line data={trafficChartData} options={chartOptions} />
           </div>
         </div>
 
         {/* Col 2: DEVICE STATUS CIRCLE (DONUT CHART) */}
-        <div className="panel" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className="panel min-w-0" style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="panel-header">
             <div className="panel-title">
-              <PieIcon size={18} color="var(--green)" />
+              <PieIcon size={18} color="var(--green)" style={{ flexShrink: 0 }} />
               <span>Device Status Circle</span>
             </div>
             <button onClick={() => onSelectTab('devices')} className="btn btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }}>
@@ -1423,7 +1431,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '4px 0' }}>
             {/* Circle Container with Centered Health Metric */}
-            <div style={{ position: 'relative', width: 150, height: 150 }}>
+            <div style={{ position: 'relative', width: 'min(150px, 45vw)', height: 'min(150px, 45vw)', maxWidth: '100%' }}>
               <Doughnut data={deviceStatusDonutData} options={donutOptions} />
               <div
                 style={{
@@ -1446,7 +1454,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
             </div>
 
             {/* Custom Legend / Status Breakdown */}
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 14, width: '100%', fontSize: 11 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '8px 12px', marginTop: 14, width: '100%', fontSize: 11 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
                 <span style={{ color: 'var(--text-secondary)' }}>Online: <strong style={{ color: 'var(--text-primary)' }}>{onlineCount}</strong></span>
@@ -1464,10 +1472,10 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
         </div>
 
         {/* Col 3: Quick Alerts Feed */}
-        <div className="panel" style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div className="panel min-w-0" style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: 'var(--amber)' }}>
-              <AlertTriangle size={16} />
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
                 <span>แจ้งเตือน ({activeAlerts.length})</span>
             </div>
             <button onClick={() => onSelectTab('alerts')} className="btn btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }}>
@@ -1476,7 +1484,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
           </div>
           
           {activeAlerts.length === 0 ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.5, padding: '20px 0' }}>
               <CheckCircle2 size={32} color="var(--green)" style={{ marginBottom: 8 }} />
                 <div style={{ fontSize: 12 }}>ไม่มีการแจ้งเตือนผิดปกติ</div>
             </div>
@@ -1489,12 +1497,13 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
                   borderLeft: `3px solid ${a.severity === 'critical' ? 'var(--red)' : 'var(--amber)'}`,
                   borderRadius: 'var(--radius-sm)',
                   fontSize: 12,
+                  minWidth: 0,
                 }}>
-                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{a.name}</span>
+                  <div style={{ fontWeight: 700, color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
+                    <span style={{ wordBreak: 'break-word' }}>{a.name}</span>
                     <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{a.time}</span>
                   </div>
-                  <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{a.description}</div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2, wordBreak: 'break-word' }}>{a.description}</div>
                 </div>
               ))}
             </div>
@@ -1562,10 +1571,10 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
           </div>
         </div>
 
-        {/* Content Layout: 2 Columns */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 24, alignItems: 'stretch' }}>
+        {/* Content Layout: 2 Columns on Desktop, 1 Column on Tablet/Mobile */}
+        <div className="top-talkers-grid">
           {/* Left: Ranked Talkers List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
             {topTalkerDevices.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 10px', color: 'var(--text-muted)', fontSize: 13 }}>
                 ยังไม่มีข้อมูลอุปกรณ์ในระบบ
@@ -1580,6 +1589,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
                 return (
                   <div
                     key={item.ip}
+                    className="min-w-0"
                     style={{
                       padding: '12px 16px',
                       borderRadius: 'var(--radius)',
@@ -1594,8 +1604,8 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
                     onMouseLeave={(e) => (e.currentTarget.style.borderColor = index === 0 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(148, 163, 184, 0.08)')}
                   >
                     {/* Top row: Rank, Name, Role, IP, and Speed */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div className="talker-header-row">
+                      <div className="talker-identity">
                         <span
                           style={{
                             fontFamily: 'var(--font-heading)',
@@ -1604,13 +1614,14 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
                             color: rankColor,
                             minWidth: 26,
                             textAlign: 'center',
+                            flexShrink: 0,
                           }}
                         >
                           {rankMedal}
                         </span>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 13 }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 13, wordBreak: 'break-word' }}>
                               {item.name || item.ip}
                             </span>
                             <span
@@ -1621,31 +1632,32 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
                                 background: item.isFirewall ? 'rgba(239, 68, 68, 0.15)' : item.isCore ? 'rgba(245, 158, 11, 0.15)' : 'rgba(0, 212, 255, 0.12)',
                                 color: item.isFirewall ? '#f87171' : item.isCore ? '#fbbf24' : 'var(--primary)',
                                 border: `1px solid ${item.isFirewall ? 'rgba(239, 68, 68, 0.3)' : item.isCore ? 'rgba(245, 158, 11, 0.3)' : 'rgba(0, 212, 255, 0.3)'}`,
+                                flexShrink: 0,
                               }}
                             >
                               {item.type}
                             </span>
                           </div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 1, wordBreak: 'break-word' }}>
                             {item.ip} {item.vendor ? `• ${item.vendor} ${item.model || ''}` : ''}
                           </div>
                         </div>
                       </div>
 
                       {/* Speed & Share Badge */}
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontFamily: 'var(--font-heading)', fontSize: 16, fontWeight: 900, color: 'var(--text-primary)' }}>
+                      <div className="talker-speed">
+                        <div style={{ fontFamily: 'var(--font-heading)', fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                           {item.totalMbps} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>MB/s</span>
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--cyan)', fontWeight: 600 }}>
+                        <div style={{ fontSize: 11, color: 'var(--cyan)', fontWeight: 600, whiteSpace: 'nowrap' }}>
                           {item.sharePercent}% <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>of network</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Visual Segmented Progress Bar */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ flex: 1, height: 6, borderRadius: 999, background: 'rgba(148, 163, 184, 0.1)', display: 'flex', overflow: 'hidden' }}>
+                    <div className="talker-progress-row">
+                      <div style={{ flex: 1, minWidth: 120, height: 6, borderRadius: 999, background: 'rgba(148, 163, 184, 0.1)', display: 'flex', overflow: 'hidden' }}>
                         <div
                           style={{
                             width: `${inPercent}%`,
@@ -1665,7 +1677,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
                         />
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, fontFamily: 'var(--font-mono)', flexShrink: 0, flexWrap: 'wrap' }}>
                         <span style={{ color: 'var(--cyan)' }}>↓ {item.inMbps} MB/s</span>
                         <span style={{ color: '#c084fc' }}>↑ {item.outMbps} MB/s</span>
                       </div>
@@ -1678,6 +1690,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
 
           {/* Right: Bandwidth Analytics & Insight Card */}
           <div
+            className="min-w-0"
             style={{
               padding: '18px 20px',
               borderRadius: 'var(--radius)',

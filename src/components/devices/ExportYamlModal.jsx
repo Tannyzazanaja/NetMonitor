@@ -151,7 +151,7 @@ export function ExportYamlModal({ isOpen, onClose }) {
         </pre>
       </div>
 
-      <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+      <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
         <button
           onClick={handleDownload}
           disabled={isLoading || !activeContent}
