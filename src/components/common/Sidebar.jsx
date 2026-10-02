@@ -12,14 +12,13 @@ import {
   PlusCircle,
   User,
   LogOut,
-  X,
 } from 'lucide-react';
 import { useDevices } from '../../context/DeviceContext';
 import { useAlerts } from '../../context/AlertContext';
 import { useTopology } from '../../context/TopologyContext';
 import { useAuth } from '../../context/AuthContext';
 
-export function Sidebar({ activeTab, setActiveTab, onOpenAddDevice, isMobileMenuOpen, isCollapsed, onCloseMobile }) {
+export function Sidebar({ activeTab, setActiveTab, onOpenAddDevice, isMobileMenuOpen, isCollapsed }) {
   const { devices } = useDevices();
   const { topoLinks } = useTopology();
   const { criticalCount } = useAlerts();
@@ -101,27 +100,6 @@ export function Sidebar({ activeTab, setActiveTab, onOpenAddDevice, isMobileMenu
               IT SUPPORT&SERVICE
             </div>
           </div>
-        )}
-        {onCloseMobile && (
-          <button
-            onClick={onCloseMobile}
-            className="mobile-sidebar-close-btn"
-            style={{
-              marginLeft: 'auto',
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              padding: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            title="ปิดเมนู (Close Menu)"
-          >
-            <X size={18} />
-          </button>
         )}
       </div>
 

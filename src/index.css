@@ -581,11 +581,6 @@ body {
   }
 }
 
-/* Mobile sidebar close button base */
-.mobile-sidebar-close-btn {
-  display: none;
-}
-
 /* 6. Navbar Responsive Elements */
 .navbar-role-short {
   display: none;
@@ -673,10 +668,6 @@ body {
   .mobile-menu-overlay.active {
     opacity: 1;
     visibility: visible;
-  }
-
-  .mobile-sidebar-close-btn {
-    display: flex !important;
   }
   
   .page-wrapper {

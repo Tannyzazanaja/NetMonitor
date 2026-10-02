@@ -89,7 +89,6 @@ function MainApp() {
         onOpenAddDevice={() => { handleOpenAdd(); setIsMobileMenuOpen(false); }}
         isMobileMenuOpen={isMobileMenuOpen}
         isCollapsed={isDesktopSidebarCollapsed}
-        onCloseMobile={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main Content Area */}
