@@ -1,6 +1,10 @@
 # NetMonitor Enterprise Network Observability Platform
 
 <p align="center">
+  <a href="README.md"><b>English</b></a> | <a href="README.th.md"><b>ภาษาไทย (คู่มือภาษาไทย)</b></a>
+</p>
+
+<p align="center">
   <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-18.x%20%7C%2020.x-339933?logo=node.js&logoColor=white" alt="Node.js"></a>
   <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19.x-61DAFB?logo=react&logoColor=black" alt="React"></a>
   <a href="https://vitejs.dev/"><img src="https://img.shields.io/badge/Vite-5.x-646CFF?logo=vite&logoColor=white" alt="Vite"></a>
@@ -23,6 +27,7 @@ The platform documentation has been consolidated into the following authoritativ
 
 | Manual | Description | Target Audience |
 |---|---|---|
+| 🇹🇭 [**คู่มือภาษาไทยฉบับสมบูรณ์**](README.th.md) | คู่มือการติดตั้ง การตั้งค่า การใช้งาน และการแก้ไขปัญหาฉบับภาษาไทย | ผู้ดูแลระบบและวิศวกรเครือข่าย |
 | 🚀 [**Installation & Deployment Guide**](INSTALLATION.md) | Step-by-step setup for Docker Compose, Native Linux (systemd), Nginx reverse proxy, and hardware sizing. | System & Network Engineers |
 | 🛠️ [**Administrator & Troubleshooting Guide**](ADMIN_GUIDE.md) | Operations, RBAC security, configuration reference, backup & restore, upgrades, and incident response playbooks. | Operations, DevOps & NOC Teams |
 | 💻 [**Developer & Architecture Guide**](DEVELOPER_GUIDE.md) | System architecture, telemetry data pipelines, codebase layout, development workflow, and testing suite. | Developers & Platform Architects |

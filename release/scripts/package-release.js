@@ -93,6 +93,7 @@ console.log('[4/5] Copying release metadata, environment specification, and guid
 const rootFilesToCopy = [
   '.env.example',
   'README.md',
+  'README.th.md',
   'INSTALLATION.md',
   'ADMIN_GUIDE.md',
   'DEVELOPER_GUIDE.md',
