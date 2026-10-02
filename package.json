@@ -1,13 +1,13 @@
 {
   "name": "network-monitor-react",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint src server",
-    "test": "node tests/test_config_redesign.cjs && node tests/test_alert_lifecycle.cjs && node tests/test_target_generator.cjs && node tests/test_wan_promql.cjs && node tests/test_settings_runtime.cjs && node tests/test_final_integration.cjs && node tests/test_emergency_login.cjs && node tests/test_analytics_platform.cjs && node tests/test_topology_discovery.cjs",
+    "test": "node tests/test_config_redesign.cjs && node tests/test_alert_lifecycle.cjs && node tests/test_target_generator.cjs && node tests/test_wan_promql.cjs && node tests/test_settings_runtime.cjs && node tests/test_final_integration.cjs && node tests/test_emergency_login.cjs && node tests/test_analytics_platform.cjs && node tests/test_topology_discovery.cjs && node tests/test_phase3_phase4_security.cjs && node tests/test_phase5_query_security.cjs && node tests/test_phase6_traffic.cjs && node tests/test_phase7_deployment_targets.cjs && node tests/test_phase8_snmp_concurrency.cjs && node tests/test_snmp_device.cjs && node scripts/security-scan.js && node scripts/verify-clean-install.js && node tests/test_phase11_backup_restore.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

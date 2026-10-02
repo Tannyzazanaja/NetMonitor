@@ -1,0 +1,31 @@
+[Unit]
+Description=NetMonitor Enterprise Network Monitoring Backend Service
+After=network.target prometheus.service snmp-exporter.service
+Wants=prometheus.service snmp-exporter.service
+
+[Service]
+Type=simple
+User=netmonitor
+Group=netmonitor
+WorkingDirectory=/opt/netmonitor
+EnvironmentFile=-/etc/netmonitor/netmonitor.env
+ExecStart=/usr/bin/node /opt/netmonitor/server/server.js
+Restart=always
+RestartSec=5s
+
+# Security hardening directives
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Environment Defaults
+Environment=NODE_ENV=production
+Environment=PORT=5001
+Environment=PROMETHEUS_TARGETS_DIR=/etc/prometheus/targets
+
+[Install]
+WantedBy=multi-user.target

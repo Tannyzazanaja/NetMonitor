@@ -52,6 +52,7 @@ import { useDevices } from '../../context/DeviceContext';
 import { useAlerts } from '../../context/AlertContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useToast } from '../../context/ToastContext';
+import { formatTrafficMbps } from '../../utils/trafficFormat';
 
 export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }) {
   const { devices, deviceStats } = useDevices();
@@ -829,13 +830,13 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
               <div style={{ background: 'rgba(0, 212, 255, 0.08)', padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(0, 212, 255, 0.2)' }}>
                 <div style={{ fontSize: 10, color: 'var(--cyan)' }}>Traffic IN</div>
                 <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--cyan)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-                  {((deviceTrafficMap[selectedMatrixDevice.ip]?.inMbps ?? selectedMatrixDevice.inMbps) || 0).toFixed(2)} <span style={{ fontSize: 9 }}>MB/s</span>
+                  {((deviceTrafficMap[selectedMatrixDevice.ip]?.inMbps ?? selectedMatrixDevice.inMbps) || 0).toFixed(2)} <span style={{ fontSize: 9 }}>Mbps</span>
                 </div>
               </div>
               <div style={{ background: 'rgba(168, 85, 247, 0.08)', padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(168, 85, 247, 0.2)' }}>
                 <div style={{ fontSize: 10, color: '#c084fc' }}>Traffic OUT</div>
                 <div style={{ fontSize: 13, fontWeight: 800, color: '#c084fc', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-                  {((deviceTrafficMap[selectedMatrixDevice.ip]?.outMbps ?? selectedMatrixDevice.outMbps) || 0).toFixed(2)} <span style={{ fontSize: 9 }}>MB/s</span>
+                  {((deviceTrafficMap[selectedMatrixDevice.ip]?.outMbps ?? selectedMatrixDevice.outMbps) || 0).toFixed(2)} <span style={{ fontSize: 9 }}>Mbps</span>
                 </div>
               </div>
             </div>
@@ -1192,7 +1193,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
                 <button
                   key={d.ip}
                   onClick={() => setSelectedMatrixDevice(d)}
-                  title={`${d.name || d.ip} (${d.ip})\nสถานะ: ${isOff ? 'OFFLINE' : 'ONLINE'}\nPing: ${d.latency}ms\nIN: ${d.inMbps} MB/s | OUT: ${d.outMbps} MB/s`}
+                  title={`${d.name || d.ip} (${d.ip})\nสถานะ: ${isOff ? 'OFFLINE' : 'ONLINE'}\nPing: ${d.latency}ms\nIN: ${d.inMbps} Mbps | OUT: ${d.outMbps} Mbps`}
                   style={{
                     width: '100%',
                     aspectRatio: isFullscreen ? '1 / 0.88' : '1 / 0.92',
@@ -1647,7 +1648,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
                       {/* Speed & Share Badge */}
                       <div className="talker-speed">
                         <div style={{ fontFamily: 'var(--font-heading)', fontSize: 16, fontWeight: 900, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                          {item.totalMbps} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>MB/s</span>
+                          {item.totalMbps} <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Mbps</span>
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--cyan)', fontWeight: 600, whiteSpace: 'nowrap' }}>
                           {item.sharePercent}% <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>of network</span>
@@ -1665,7 +1666,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
                             borderRight: '1px solid rgba(0,0,0,0.5)',
                             transition: 'width 0.3s ease',
                           }}
-                          title={`IN: ${item.inMbps} MB/s`}
+                          title={`IN: ${item.inMbps} Mbps`}
                         ></div>
                         <div
                           style={{
@@ -1673,13 +1674,13 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
                             boxShadow: '0 0 6px rgba(168, 85, 247, 0.6)',
                             transition: 'width 0.4s ease',
                           }}
-                          title={`Outbound: ${item.outMbps} MB/s`}
+                          title={`Outbound: ${item.outMbps} Mbps`}
                         />
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, fontFamily: 'var(--font-mono)', flexShrink: 0, flexWrap: 'wrap' }}>
-                        <span style={{ color: 'var(--cyan)' }}>↓ {item.inMbps} MB/s</span>
-                        <span style={{ color: '#c084fc' }}>↑ {item.outMbps} MB/s</span>
+                        <span style={{ color: 'var(--cyan)' }}>↓ {item.inMbps} Mbps</span>
+                        <span style={{ color: '#c084fc' }}>↑ {item.outMbps} Mbps</span>
                       </div>
                     </div>
                   </div>
@@ -1726,7 +1727,7 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
                     {topLeader.name || topLeader.ip}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--amber)', fontWeight: 600, marginTop: 3 }}>
-                    ครองสัดส่วน {topLeader.sharePercent}% ของทราฟฟิกทั้งระบบ ({topLeader.totalMbps} MB/s)
+                    ครองสัดส่วน {topLeader.sharePercent}% ของทราฟฟิกทั้งระบบ ({topLeader.totalMbps} Mbps)
                   </div>
                 </div>
               )}

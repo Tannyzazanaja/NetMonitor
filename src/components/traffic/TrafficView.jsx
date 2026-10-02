@@ -8,17 +8,9 @@ import { PerformanceModal } from '../services/PerformanceModal';
 
 const fallbackPromClient = new PrometheusClient();
 
-export function formatTrafficSpeed(mbps) {
-  if (mbps === null || mbps === undefined || isNaN(mbps)) {
-    return { val: 'No Data', unit: '', isNoData: true };
-  }
-  const val = Number(mbps);
-  if (val <= 0) return { val: '0.00', unit: 'Mbps', isNoData: false };
-  if (val >= 1000) return { val: (val / 1000).toFixed(2), unit: 'Gbps', isNoData: false };
-  if (val >= 0.1) return { val: val.toFixed(2), unit: 'Mbps', isNoData: false };
-  if (val >= 0.0001) return { val: (val * 1000).toFixed(1), unit: 'Kbps', isNoData: false };
-  return { val: (val * 1000000).toFixed(0), unit: 'bps', isNoData: false };
-}
+import { formatTrafficSpeed, formatTrafficMbps } from '../../utils/trafficFormat';
+
+export { formatTrafficSpeed, formatTrafficMbps };
 
 export function TrafficView() {
   const { devices } = useDevices();

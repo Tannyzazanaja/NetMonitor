@@ -1,0 +1,38 @@
+# =============================================================================
+# EXAMPLE: SNMP Exporter Targets File (/etc/prometheus/targets/snmp/netmonitor.yml)
+# =============================================================================
+# Uses target-level labels 'module' and 'auth' to dynamically control
+# SNMP Exporter behavior without creating separate, duplicated Prometheus jobs.
+#
+# Notice:
+# 1. 'auth' uses authorized snmp.yml profile name (e.g. public_v2), NOT plaintext community
+# 2. 'module' designates exact vendor MIB module verified in snmp.yml
+# =============================================================================
+
+# Device 1: Cisco Catalyst Switch
+- targets:
+    - '192.0.2.1'
+  labels:
+    job: 'snmp'
+    target: '192.0.2.1'
+    module: 'cisco_switch'     # Optimized Cisco MIB (Interfaces + LLDP/CDP + CPU + Memory)
+    auth: 'public_v2'          # Auth profile from snmp.yml (public community)
+    name: 'DC-CORE-01'
+    type: 'coreswitch'
+    vendor: 'Cisco'
+    model: 'Catalyst-9300'
+    location: 'Main-DC-Rack01'
+
+# Device 2: Aruba / HPE 2530 Switch
+- targets:
+    - '192.0.2.10'
+  labels:
+    job: 'snmp'
+    target: '192.0.2.10'
+    module: 'aruba_switch'     # Optimized HP/Aruba MIB (Interfaces + LLDP + CPU + Memory)
+    auth: 'public_v2'          # Auth profile from snmp.yml (public community)
+    name: 'BLDG1-DIST-01'
+    type: 'distswitch'
+    vendor: 'HPE'
+    model: '2530-48G'
+    location: 'Building1-IDF'

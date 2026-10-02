@@ -1,0 +1,616 @@
+# =============================================================================
+# OPTIMIZED SNMP EXPORTER MODULES (Cisco & Aruba / HPE Switches)
+# =============================================================================
+# Append these modules into /etc/prometheus/snmp.yml under the `modules:` block.
+# Designed for high performance and low scrape duration:
+# - Minimal walks: only walks necessary OIDs (Interfaces, LLDP/CDP, CPU, Memory)
+# - No bloated table walks (prevents scrape timeout on large switches)
+# =============================================================================
+
+modules:
+  # ---------------------------------------------------------------------------
+  # Cisco Catalyst / IOS-XE Switch (All-in-One: Traffic + LLDP/CDP + CPU + Mem)
+  # ---------------------------------------------------------------------------
+  cisco_switch:
+    walk:
+      # LLDP Neighbors
+      - 1.0.8802.1.1.2.1.4.1.1.7
+      - 1.0.8802.1.1.2.1.4.1.1.8
+      - 1.0.8802.1.1.2.1.4.1.1.9
+      # CDP Neighbors
+      - 1.3.6.1.4.1.9.9.23.1.2.1.1.6
+      - 1.3.6.1.4.1.9.9.23.1.2.1.1.7
+      - 1.3.6.1.4.1.9.9.23.1.2.1.1.8
+      # Standard Interfaces (64-bit HC counters)
+      - 1.3.6.1.2.1.2.2.1.1
+      - 1.3.6.1.2.1.2.2.1.2
+      - 1.3.6.1.2.1.2.2.1.7
+      - 1.3.6.1.2.1.2.2.1.8
+      - 1.3.6.1.2.1.31.1.1.1.1
+      - 1.3.6.1.2.1.31.1.1.1.6
+      - 1.3.6.1.2.1.31.1.1.1.10
+      - 1.3.6.1.2.1.31.1.1.1.18
+      # Cisco CPU 5-minute utilization
+      - 1.3.6.1.4.1.9.9.109.1.1.1.1.5
+      # Cisco Memory Pool (Used & Free)
+      - 1.3.6.1.4.1.9.9.48.1.1.1.5
+      - 1.3.6.1.4.1.9.9.48.1.1.1.6
+    metrics:
+      - name: lldpRemSysName
+        oid: 1.0.8802.1.1.2.1.4.1.1.9
+        type: DisplayString
+        help: System name of remote LLDP neighbor
+        indexes:
+          - labelname: lldpRemTimeMark
+            type: gauge
+          - labelname: lldpRemLocalPortNum
+            type: gauge
+          - labelname: lldpRemIndex
+            type: gauge
+      - name: lldpRemPortDesc
+        oid: 1.0.8802.1.1.2.1.4.1.1.8
+        type: DisplayString
+        help: Port description of remote LLDP neighbor
+        indexes:
+          - labelname: lldpRemTimeMark
+            type: gauge
+          - labelname: lldpRemLocalPortNum
+            type: gauge
+          - labelname: lldpRemIndex
+            type: gauge
+      - name: lldpRemPortId
+        oid: 1.0.8802.1.1.2.1.4.1.1.7
+        type: DisplayString
+        help: Port ID of remote LLDP neighbor
+        indexes:
+          - labelname: lldpRemTimeMark
+            type: gauge
+          - labelname: lldpRemLocalPortNum
+            type: gauge
+          - labelname: lldpRemIndex
+            type: gauge
+      - name: cdpCacheDeviceId
+        oid: 1.3.6.1.4.1.9.9.23.1.2.1.1.6
+        type: DisplayString
+        help: Remote Device ID reported in CDP message
+        indexes:
+          - labelname: cdpCacheIfIndex
+            type: gauge
+          - labelname: cdpCacheDeviceIndex
+            type: gauge
+      - name: cdpCacheDevicePort
+        oid: 1.3.6.1.4.1.9.9.23.1.2.1.1.7
+        type: DisplayString
+        help: Remote Port ID reported in CDP message
+        indexes:
+          - labelname: cdpCacheIfIndex
+            type: gauge
+          - labelname: cdpCacheDeviceIndex
+            type: gauge
+      - name: cdpCachePlatform
+        oid: 1.3.6.1.4.1.9.9.23.1.2.1.1.8
+        type: DisplayString
+        help: Remote Device hardware platform from CDP
+        indexes:
+          - labelname: cdpCacheIfIndex
+            type: gauge
+          - labelname: cdpCacheDeviceIndex
+            type: gauge
+      - name: ifAdminStatus
+        oid: 1.3.6.1.2.1.2.2.1.7
+        type: gauge
+        help: Desired administrative state of interface
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifOperStatus
+        oid: 1.3.6.1.2.1.2.2.1.8
+        type: gauge
+        help: Current operational state of interface
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifHCInOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.6
+        type: counter
+        help: Total incoming traffic in bytes (64-bit)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifHCOutOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.10
+        type: counter
+        help: Total outgoing traffic in bytes (64-bit)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifDescr
+        oid: 1.3.6.1.2.1.2.2.1.2
+        type: DisplayString
+        help: Interface description
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifAlias
+        oid: 1.3.6.1.2.1.31.1.1.1.18
+        type: DisplayString
+        help: User-configured interface alias
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: cpmCPUTotal5minRev
+        oid: 1.3.6.1.4.1.9.9.109.1.1.1.1.5
+        type: gauge
+        help: Overall Cisco CPU busy percentage in the last 5 minute period
+        indexes:
+          - labelname: cpmCPUTotalIndex
+            type: gauge
+      - name: ciscoMemoryPoolUsed
+        oid: 1.3.6.1.4.1.9.9.48.1.1.1.5
+        type: gauge
+        help: Number of bytes currently in use in Cisco memory pool
+        indexes:
+          - labelname: ciscoMemoryPoolType
+            type: gauge
+      - name: ciscoMemoryPoolFree
+        oid: 1.3.6.1.4.1.9.9.48.1.1.1.6
+        type: gauge
+        help: Number of bytes available in Cisco memory pool
+        indexes:
+          - labelname: ciscoMemoryPoolType
+            type: gauge
+
+  # ---------------------------------------------------------------------------
+  # Aruba / HPE Switch (All-in-One: Traffic + LLDP + CPU + Mem)
+  # ---------------------------------------------------------------------------
+  aruba_switch:
+    walk:
+      # LLDP Neighbors
+      - 1.0.8802.1.1.2.1.4.1.1.7
+      - 1.0.8802.1.1.2.1.4.1.1.8
+      - 1.0.8802.1.1.2.1.4.1.1.9
+      # Standard Interfaces (64-bit HC counters)
+      - 1.3.6.1.2.1.2.2.1.1
+      - 1.3.6.1.2.1.2.2.1.2
+      - 1.3.6.1.2.1.2.2.1.7
+      - 1.3.6.1.2.1.2.2.1.8
+      - 1.3.6.1.2.1.31.1.1.1.1
+      - 1.3.6.1.2.1.31.1.1.1.6
+      - 1.3.6.1.2.1.31.1.1.1.10
+      - 1.3.6.1.2.1.31.1.1.1.18
+      # HP / Aruba 2530 CPU Utilization
+      - 1.3.6.1.4.1.11.2.14.11.5.1.9.6.1.0
+      # HP / Aruba Memory (Total, Free, Allocated)
+      - 1.3.6.1.4.1.11.2.14.11.5.1.1.2.1.1.1.5
+      - 1.3.6.1.4.1.11.2.14.11.5.1.1.2.1.1.1.6
+      - 1.3.6.1.4.1.11.2.14.11.5.1.1.2.1.1.1.7
+    metrics:
+      - name: lldpRemSysName
+        oid: 1.0.8802.1.1.2.1.4.1.1.9
+        type: DisplayString
+        help: System name of remote LLDP neighbor
+        indexes:
+          - labelname: lldpRemTimeMark
+            type: gauge
+          - labelname: lldpRemLocalPortNum
+            type: gauge
+          - labelname: lldpRemIndex
+            type: gauge
+      - name: lldpRemPortDesc
+        oid: 1.0.8802.1.1.2.1.4.1.1.8
+        type: DisplayString
+        help: Port description of remote LLDP neighbor
+        indexes:
+          - labelname: lldpRemTimeMark
+            type: gauge
+          - labelname: lldpRemLocalPortNum
+            type: gauge
+          - labelname: lldpRemIndex
+            type: gauge
+      - name: lldpRemPortId
+        oid: 1.0.8802.1.1.2.1.4.1.1.7
+        type: DisplayString
+        help: Port ID of remote LLDP neighbor
+        indexes:
+          - labelname: lldpRemTimeMark
+            type: gauge
+          - labelname: lldpRemLocalPortNum
+            type: gauge
+          - labelname: lldpRemIndex
+            type: gauge
+      - name: ifAdminStatus
+        oid: 1.3.6.1.2.1.2.2.1.7
+        type: gauge
+        help: Desired administrative state of interface
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifOperStatus
+        oid: 1.3.6.1.2.1.2.2.1.8
+        type: gauge
+        help: Current operational state of interface
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifHCInOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.6
+        type: counter
+        help: Total incoming traffic in bytes (64-bit)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifHCOutOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.10
+        type: counter
+        help: Total outgoing traffic in bytes (64-bit)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifDescr
+        oid: 1.3.6.1.2.1.2.2.1.2
+        type: DisplayString
+        help: Interface description
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifAlias
+        oid: 1.3.6.1.2.1.31.1.1.1.18
+        type: DisplayString
+        help: User-configured interface alias
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: hpSwitchCpuStat
+        oid: 1.3.6.1.4.1.11.2.14.11.5.1.9.6.1.0
+        type: gauge
+        help: The CPU utilization percentage on HP/Aruba ProCurve switches
+      - name: hpSwitchMemoryTotal
+        oid: 1.3.6.1.4.1.11.2.14.11.5.1.1.2.1.1.1.5
+        type: gauge
+        help: Total switch memory in bytes
+        indexes:
+          - labelname: hpSwitchMemoryIndex
+            type: gauge
+      - name: hpSwitchMemoryFree
+        oid: 1.3.6.1.4.1.11.2.14.11.5.1.1.2.1.1.1.6
+        type: gauge
+        help: Free switch memory in bytes
+        indexes:
+          - labelname: hpSwitchMemoryIndex
+            type: gauge
+      - name: hpSwitchMemoryAllocated
+        oid: 1.3.6.1.4.1.11.2.14.11.5.1.1.2.1.1.1.7
+        type: gauge
+        help: Allocated switch memory in bytes
+        indexes:
+          - labelname: hpSwitchMemoryIndex
+            type: gauge
+
+  # ---------------------------------------------------------------------------
+  # Cisco Small Business (Catalyst 1200/1300 / CBS350 / SG Series)
+  # ---------------------------------------------------------------------------
+  cisco_sb:
+    walk:
+      - 1.0.8802.1.1.2.1.4.1.1.7
+      - 1.0.8802.1.1.2.1.4.1.1.8
+      - 1.0.8802.1.1.2.1.4.1.1.9
+      - 1.3.6.1.2.1.2.2.1.1
+      - 1.3.6.1.2.1.2.2.1.2
+      - 1.3.6.1.2.1.2.2.1.7
+      - 1.3.6.1.2.1.2.2.1.8
+      - 1.3.6.1.2.1.31.1.1.1.1
+      - 1.3.6.1.2.1.31.1.1.1.6
+      - 1.3.6.1.2.1.31.1.1.1.10
+      - 1.3.6.1.2.1.31.1.1.1.18
+      - 1.3.6.1.4.1.9.6.1.101.1.9.0
+    metrics:
+      - name: lldpRemSysName
+        oid: 1.0.8802.1.1.2.1.4.1.1.9
+        type: DisplayString
+        help: System name of remote LLDP neighbor
+        indexes:
+          - labelname: lldpRemTimeMark
+            type: gauge
+          - labelname: lldpRemLocalPortNum
+            type: gauge
+          - labelname: lldpRemIndex
+            type: gauge
+      - name: ifAdminStatus
+        oid: 1.3.6.1.2.1.2.2.1.7
+        type: gauge
+        help: Desired administrative state of interface
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifOperStatus
+        oid: 1.3.6.1.2.1.2.2.1.8
+        type: gauge
+        help: Current operational state of interface
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifHCInOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.6
+        type: counter
+        help: Total incoming traffic in bytes (64-bit)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifHCOutOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.10
+        type: counter
+        help: Total outgoing traffic in bytes (64-bit)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifDescr
+        oid: 1.3.6.1.2.1.2.2.1.2
+        type: DisplayString
+        help: Interface description
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifAlias
+        oid: 1.3.6.1.2.1.31.1.1.1.18
+        type: DisplayString
+        help: User-configured interface alias
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: rlCpuUtilDuringLast5Minutes
+        oid: 1.3.6.1.4.1.9.6.1.101.1.9.0
+        type: gauge
+        help: CPU utilization percentage on Cisco Small Business switches
+
+  # ---------------------------------------------------------------------------
+  # Huawei VRP / CloudEngine Switches
+  # ---------------------------------------------------------------------------
+  huawei_switch:
+    walk:
+      - 1.0.8802.1.1.2.1.4.1.1.7
+      - 1.0.8802.1.1.2.1.4.1.1.8
+      - 1.0.8802.1.1.2.1.4.1.1.9
+      - 1.3.6.1.2.1.2.2.1.1
+      - 1.3.6.1.2.1.2.2.1.2
+      - 1.3.6.1.2.1.2.2.1.7
+      - 1.3.6.1.2.1.2.2.1.8
+      - 1.3.6.1.2.1.31.1.1.1.1
+      - 1.3.6.1.2.1.31.1.1.1.6
+      - 1.3.6.1.2.1.31.1.1.1.10
+      - 1.3.6.1.2.1.31.1.1.1.18
+      - 1.3.6.1.4.1.2011.5.25.31.1.1.1.1.5
+      - 1.3.6.1.4.1.2011.5.25.31.1.1.1.1.7
+    metrics:
+      - name: lldpRemSysName
+        oid: 1.0.8802.1.1.2.1.4.1.1.9
+        type: DisplayString
+        help: System name of remote LLDP neighbor
+        indexes:
+          - labelname: lldpRemTimeMark
+            type: gauge
+          - labelname: lldpRemLocalPortNum
+            type: gauge
+          - labelname: lldpRemIndex
+            type: gauge
+      - name: ifAdminStatus
+        oid: 1.3.6.1.2.1.2.2.1.7
+        type: gauge
+        help: Desired administrative state of interface
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifOperStatus
+        oid: 1.3.6.1.2.1.2.2.1.8
+        type: gauge
+        help: Current operational state of interface
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifHCInOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.6
+        type: counter
+        help: Total incoming traffic in bytes (64-bit)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifHCOutOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.10
+        type: counter
+        help: Total outgoing traffic in bytes (64-bit)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifDescr
+        oid: 1.3.6.1.2.1.2.2.1.2
+        type: DisplayString
+        help: Interface description
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifAlias
+        oid: 1.3.6.1.2.1.31.1.1.1.18
+        type: DisplayString
+        help: User-configured interface alias
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: hwEntityCpuUsage
+        oid: 1.3.6.1.4.1.2011.5.25.31.1.1.1.1.5
+        type: gauge
+        help: Huawei CPU utilization percentage
+        indexes:
+          - labelname: hwEntityIndex
+            type: gauge
+      - name: hwEntityMemUsage
+        oid: 1.3.6.1.4.1.2011.5.25.31.1.1.1.1.7
+        type: gauge
+        help: Huawei Memory utilization percentage
+        indexes:
+          - labelname: hwEntityIndex
+            type: gauge
+
+  # ---------------------------------------------------------------------------
+  # MikroTik RouterOS (Routers & Switches)
+  # ---------------------------------------------------------------------------
+  mikrotik_router:
+    walk:
+      - 1.0.8802.1.1.2.1.4.1.1.7
+      - 1.0.8802.1.1.2.1.4.1.1.8
+      - 1.0.8802.1.1.2.1.4.1.1.9
+      - 1.3.6.1.2.1.2.2.1.1
+      - 1.3.6.1.2.1.2.2.1.2
+      - 1.3.6.1.2.1.2.2.1.7
+      - 1.3.6.1.2.1.2.2.1.8
+      - 1.3.6.1.2.1.31.1.1.1.1
+      - 1.3.6.1.2.1.31.1.1.1.6
+      - 1.3.6.1.2.1.31.1.1.1.10
+      - 1.3.6.1.2.1.31.1.1.1.18
+      - 1.3.6.1.2.1.25.3.3.1.2
+      - 1.3.6.1.2.1.25.2.3.1.5
+      - 1.3.6.1.2.1.25.2.3.1.6
+    metrics:
+      - name: lldpRemSysName
+        oid: 1.0.8802.1.1.2.1.4.1.1.9
+        type: DisplayString
+        help: System name of remote LLDP neighbor
+        indexes:
+          - labelname: lldpRemTimeMark
+            type: gauge
+          - labelname: lldpRemLocalPortNum
+            type: gauge
+          - labelname: lldpRemIndex
+            type: gauge
+      - name: ifAdminStatus
+        oid: 1.3.6.1.2.1.2.2.1.7
+        type: gauge
+        help: Desired administrative state of interface
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifOperStatus
+        oid: 1.3.6.1.2.1.2.2.1.8
+        type: gauge
+        help: Current operational state of interface
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifHCInOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.6
+        type: counter
+        help: Total incoming traffic in bytes (64-bit)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifHCOutOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.10
+        type: counter
+        help: Total outgoing traffic in bytes (64-bit)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifDescr
+        oid: 1.3.6.1.2.1.2.2.1.2
+        type: DisplayString
+        help: Interface description
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifAlias
+        oid: 1.3.6.1.2.1.31.1.1.1.18
+        type: DisplayString
+        help: User-configured interface alias
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: hrProcessorLoad
+        oid: 1.3.6.1.2.1.25.3.3.1.2
+        type: gauge
+        help: CPU utilization on MikroTik / Host Resources
+        indexes:
+          - labelname: hrDeviceIndex
+            type: gauge
+      - name: hrStorageSize
+        oid: 1.3.6.1.2.1.25.2.3.1.5
+        type: gauge
+        help: Total storage / memory size in allocation units
+        indexes:
+          - labelname: hrStorageIndex
+            type: gauge
+      - name: hrStorageUsed
+        oid: 1.3.6.1.2.1.25.2.3.1.6
+        type: gauge
+        help: Used storage / memory in allocation units
+        indexes:
+          - labelname: hrStorageIndex
+            type: gauge
+
+  # ---------------------------------------------------------------------------
+  # Universal IF-MIB (RFC 2863 Standard Interfaces + RFC 2790 Topology)
+  # ---------------------------------------------------------------------------
+  if_mib:
+    walk:
+      - 1.0.8802.1.1.2.1.4.1.1.7
+      - 1.0.8802.1.1.2.1.4.1.1.8
+      - 1.0.8802.1.1.2.1.4.1.1.9
+      - 1.3.6.1.2.1.2.2.1.1
+      - 1.3.6.1.2.1.2.2.1.2
+      - 1.3.6.1.2.1.2.2.1.7
+      - 1.3.6.1.2.1.2.2.1.8
+      - 1.3.6.1.2.1.31.1.1.1.1
+      - 1.3.6.1.2.1.31.1.1.1.6
+      - 1.3.6.1.2.1.31.1.1.1.10
+      - 1.3.6.1.2.1.31.1.1.1.18
+    metrics:
+      - name: lldpRemSysName
+        oid: 1.0.8802.1.1.2.1.4.1.1.9
+        type: DisplayString
+        help: System name of remote LLDP neighbor
+        indexes:
+          - labelname: lldpRemTimeMark
+            type: gauge
+          - labelname: lldpRemLocalPortNum
+            type: gauge
+          - labelname: lldpRemIndex
+            type: gauge
+      - name: ifAdminStatus
+        oid: 1.3.6.1.2.1.2.2.1.7
+        type: gauge
+        help: Desired administrative state of interface
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifOperStatus
+        oid: 1.3.6.1.2.1.2.2.1.8
+        type: gauge
+        help: Current operational state of interface
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifHCInOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.6
+        type: counter
+        help: Total incoming traffic in bytes (64-bit)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifHCOutOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.10
+        type: counter
+        help: Total outgoing traffic in bytes (64-bit)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifDescr
+        oid: 1.3.6.1.2.1.2.2.1.2
+        type: DisplayString
+        help: Interface description
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+      - name: ifAlias
+        oid: 1.3.6.1.2.1.31.1.1.1.18
+        type: DisplayString
+        help: User-configured interface alias
+        indexes:
+          - labelname: ifIndex
+            type: gauge

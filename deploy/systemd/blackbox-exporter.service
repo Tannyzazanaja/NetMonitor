@@ -1,0 +1,20 @@
+[Unit]
+Description=Prometheus Blackbox Exporter (ICMP / HTTP Ping) for NetMonitor
+After=network.target
+
+[Service]
+Type=simple
+User=root
+# Blackbox requires raw socket capability for ICMP ping probes
+AmbientCapabilities=CAP_NET_RAW
+ExecStart=/usr/local/bin/blackbox_exporter \
+  --config.file=/etc/blackbox_exporter/config.yml \
+  --web.listen-address=0.0.0.0:9115
+Restart=always
+RestartSec=5s
+
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
