@@ -1,5 +1,11 @@
 {
-  "devices": [],
+  "devices": [
+    {
+      "ip": "10.10.10.1",
+      "name": "Core-Editor-Device",
+      "community": "public"
+    }
+  ],
   "settings": {
     "prometheusUrl": "http://localhost:9090",
     "grafanaUrl": "http://localhost:3000",
@@ -13,12 +19,13 @@
     "defaultDiscoveryCidr": "192.168.1.0/24",
     "emergencyUsername": "emergency",
     "isConfigured": false,
-    "emergencyPasswordHash": "ee14e31b3a2a9f04a94aff096eae2a4bca67c323454bce3d424fa8edf5575cf4e01eefe5186e8660c278d64f3364f8381b0b9d0850b751e83676327b679ca20f",
-    "emergencyPasswordSalt": "0f7014f01ea8c4241e2723d81d592767"
+    "emergencyPasswordHash": "b0ae4da68c685768d46a584fd35720245a5543a9a93371330aed700a330b7b127f3567d0bbb87551f043090c1149dce9c42273e7bc54c9099970eae52f057697",
+    "emergencyPasswordSalt": "7da4d1244f18456c5410d30e8362a8b2",
+    "emergencyPassword": "emergency@netmon"
   },
   "topologyPositions": {},
   "deletedIps": [],
-  "updatedAt": "2026-10-02T04:36:56.802Z",
+  "updatedAt": "2026-10-09T03:02:32.881Z",
   "topology": {
     "nodes": [],
     "edges": [],

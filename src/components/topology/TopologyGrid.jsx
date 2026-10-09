@@ -11,11 +11,13 @@ import {
 } from 'lucide-react';
 import { useTopology } from '../../context/TopologyContext';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { copyToClipboard } from '../../utils/clipboard';
 
 export function TopologyGrid({ onOpenAddDevice }) {
   const { topoNodes, topoLinks, openNeighborModal } = useTopology();
   const { showToast } = useToast();
+  const { canEdit } = useAuth();
 
   const handleCopyIp = async (text) => {
     if (!text) return;
@@ -48,9 +50,11 @@ export function TopologyGrid({ onOpenAddDevice }) {
           เริ่มต้นด้วยการกดปุ่ม <strong>[+ เพิ่มอุปกรณ์]</strong> (เช่น Core Switch หรือ Firewall)<br />
           จากนั้นเมื่อเพิ่มอุปกรณ์ตัวถัดไป ระบบจะค้นหาและเชื่อมโยงสาย (CDP/LLDP) เข้าหาอุปกรณ์ที่เพิ่มไว้ก่อนหน้าให้อัตโนมัติ
         </div>
-        <button onClick={onOpenAddDevice} className="btn btn-primary" style={{ padding: '10px 24px', fontSize: 13 }}>
-          ➕ เพิ่มอุปกรณ์ตัวแรก (Add Device)
-        </button>
+        {canEdit && (
+          <button onClick={onOpenAddDevice} className="btn btn-primary" style={{ padding: '10px 24px', fontSize: 13 }}>
+            ➕ เพิ่มอุปกรณ์ตัวแรก (Add Device)
+          </button>
+        )}
       </div>
     );
   }

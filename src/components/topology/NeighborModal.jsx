@@ -18,12 +18,14 @@ import { Modal } from '../common/Modal';
 import { useTopology } from '../../context/TopologyContext';
 import { useDevices } from '../../context/DeviceContext';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { copyToClipboard } from '../../utils/clipboard';
 
 export function NeighborModal({ onOpenAddDevice, onOpenEditDevice }) {
   const { neighborModalNode, closeNeighborModal, refreshTopology } = useTopology();
   const { devices, updateDeviceIp } = useDevices();
   const { showToast } = useToast();
+  const { canEdit } = useAuth();
 
   if (!neighborModalNode) return null;
 
@@ -41,6 +43,10 @@ export function NeighborModal({ onOpenAddDevice, onOpenEditDevice }) {
   };
 
   const handleAddNeighbor = (nbr) => {
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถเพิ่มอุปกรณ์ได้');
+      return;
+    }
     closeNeighborModal();
     if (onOpenAddDevice) {
       onOpenAddDevice({
@@ -54,6 +60,10 @@ export function NeighborModal({ onOpenAddDevice, onOpenEditDevice }) {
   };
 
   const handleEditNeighbor = (nbrIp) => {
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถแก้ไขอุปกรณ์ได้');
+      return;
+    }
     closeNeighborModal();
     if (onOpenEditDevice) {
       onOpenEditDevice(nbrIp);
@@ -61,6 +71,10 @@ export function NeighborModal({ onOpenAddDevice, onOpenEditDevice }) {
   };
 
   const handleFixIpMismatch = (oldIp, targetIp) => {
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถเปลี่ยน IP ได้');
+      return;
+    }
     if (updateDeviceIp) {
       updateDeviceIp(oldIp, targetIp);
       closeNeighborModal();
@@ -167,21 +181,23 @@ export function NeighborModal({ onOpenAddDevice, onOpenEditDevice }) {
                 ตรวจพบข้อมูล SNMP บน Prometheus อยู่ที่ IP <strong style={{ color: 'var(--cyan)', fontFamily: 'var(--font-mono)' }}>{node.effectiveIp}</strong> (แทน {node.ip})
               </span>
             </div>
-            <button
-              onClick={() => handleFixIpMismatch(node.ip, node.effectiveIp)}
-              className="btn btn-primary"
-              style={{
-                fontSize: 11,
-                padding: '5px 12px',
-                fontWeight: 700,
-                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                color: '#000',
-                border: 'none',
-                boxShadow: '0 0 10px rgba(245, 158, 11, 0.4)',
-              }}
-            >
-              🔧 อัพเดต IP เป็น {node.effectiveIp} ทันที
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => handleFixIpMismatch(node.ip, node.effectiveIp)}
+                className="btn btn-primary"
+                style={{
+                  fontSize: 11,
+                  padding: '5px 12px',
+                  fontWeight: 700,
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  color: '#000',
+                  border: 'none',
+                  boxShadow: '0 0 10px rgba(245, 158, 11, 0.4)',
+                }}
+              >
+                🔧 อัพเดต IP เป็น {node.effectiveIp} ทันที
+              </button>
+            )}
           </div>
         )}
 
@@ -364,40 +380,42 @@ export function NeighborModal({ onOpenAddDevice, onOpenEditDevice }) {
                       {/* Actions */}
                       <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                          {isExisting ? (
-                            <button
-                              onClick={() => handleEditNeighbor(nbr.ip)}
-                              className="btn btn-secondary"
-                              style={{
-                                fontSize: 11,
-                                padding: '3px 8px',
-                                gap: 4,
-                                color: 'var(--green)',
-                                borderColor: 'rgba(16, 185, 129, 0.3)',
-                                background: 'rgba(16, 185, 129, 0.08)',
-                              }}
-                              title="อุปกรณ์นี้อยู่ในระบบแล้ว คลิกเพื่อแก้ไขข้อมูล"
-                            >
-                              <CheckCircle2 size={12} color="var(--green)" />
-                              <span>ในระบบแล้ว</span>
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleAddNeighbor(nbr)}
-                              className="btn btn-primary"
-                              style={{
-                                fontSize: 11,
-                                padding: '4px 10px',
-                                gap: 4,
-                                fontWeight: 700,
-                                background: 'linear-gradient(135deg, #00d4ff 0%, #0284c7 100%)',
-                                boxShadow: '0 0 10px rgba(0, 212, 255, 0.3)',
-                              }}
-                              title="คลิกเพื่อเพิ่มอุปกรณ์นี้ลงในระบบมอนิเตอร์และผังเครือข่าย"
-                            >
-                              <PlusCircle size={13} />
-                              <span>+ เพิ่มลงระบบ</span>
-                            </button>
+                          {canEdit && (
+                            isExisting ? (
+                              <button
+                                onClick={() => handleEditNeighbor(nbr.ip)}
+                                className="btn btn-secondary"
+                                style={{
+                                  fontSize: 11,
+                                  padding: '3px 8px',
+                                  gap: 4,
+                                  color: 'var(--green)',
+                                  borderColor: 'rgba(16, 185, 129, 0.3)',
+                                  background: 'rgba(16, 185, 129, 0.08)',
+                                }}
+                                title="อุปกรณ์นี้อยู่ในระบบแล้ว คลิกเพื่อแก้ไขข้อมูล"
+                              >
+                                <CheckCircle2 size={12} color="var(--green)" />
+                                <span>ในระบบแล้ว</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleAddNeighbor(nbr)}
+                                className="btn btn-primary"
+                                style={{
+                                  fontSize: 11,
+                                  padding: '4px 10px',
+                                  gap: 4,
+                                  fontWeight: 700,
+                                  background: 'linear-gradient(135deg, #00d4ff 0%, #0284c7 100%)',
+                                  boxShadow: '0 0 10px rgba(0, 212, 255, 0.3)',
+                                }}
+                                title="คลิกเพื่อเพิ่มอุปกรณ์นี้ลงในระบบมอนิเตอร์และผังเครือข่าย"
+                              >
+                                <PlusCircle size={13} />
+                                <span>+ เพิ่มลงระบบ</span>
+                              </button>
+                            )
                           )}
 
                           {nbr.isRealIp && (

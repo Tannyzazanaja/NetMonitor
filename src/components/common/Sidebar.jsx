@@ -5,7 +5,6 @@ import {
   Network,
   Server,
   Activity,
-  BarChart3,
   HeartPulse,
   AlertTriangle,
   Settings,
@@ -22,18 +21,17 @@ export function Sidebar({ activeTab, setActiveTab, onOpenAddDevice, isMobileMenu
   const { devices } = useDevices();
   const { topoLinks } = useTopology();
   const { criticalCount } = useAlerts();
-  const { user, logout } = useAuth();
+  const { user, logout, canEdit } = useAuth();
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'analytics', label: 'Analytics', icon: TrendingUp, badge: 'NEW', badgeType: 'info' },
+    { id: 'analytics', label: 'Analytics', icon: TrendingUp },
     { id: 'topology', label: 'Topology Map', icon: Network, badge: topoLinks.length > 0 ? `${topoLinks.length} links` : null },
     { id: 'devices', label: 'Device Manager', icon: Server, badge: devices.length },
     { id: 'traffic', label: 'Traffic & WAN', icon: Activity },
     { id: 'services', label: 'Service Health', icon: HeartPulse },
     { id: 'alerts', label: 'Alert History', icon: AlertTriangle, badge: criticalCount > 0 ? criticalCount : null, badgeType: 'danger' },
-    { id: 'grafana', label: 'Grafana Analytics', icon: BarChart3, badge: 'NOC', badgeType: 'warning' },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    ...(!user?.isShared ? [{ id: 'settings', label: 'Settings', icon: Settings }] : []),
   ];
 
   return (
@@ -104,16 +102,18 @@ export function Sidebar({ activeTab, setActiveTab, onOpenAddDevice, isMobileMenu
       </div>
 
       {/* Quick Action: Add Device */}
-      <div style={{ padding: '16px 16px 8px 16px' }}>
-        <button
-          onClick={onOpenAddDevice}
-          className="btn btn-primary"
-          style={{ width: "100%", fontSize: 12, padding: isCollapsed ? "9px 0" : "9px 12px", justifyContent: isCollapsed ? "center" : "flex-start" }}
-        >
-          <PlusCircle size={15} />
-          {!isCollapsed && <span>เพิ่มอุปกรณ์ (Add Device)</span>}
-        </button>
-      </div>
+      {canEdit && (
+        <div style={{ padding: '16px 16px 8px 16px' }}>
+          <button
+            onClick={onOpenAddDevice}
+            className="btn btn-primary"
+            style={{ width: "100%", fontSize: 12, padding: isCollapsed ? "9px 0" : "9px 12px", justifyContent: isCollapsed ? "center" : "flex-start" }}
+          >
+            <PlusCircle size={15} />
+            {!isCollapsed && <span>เพิ่มอุปกรณ์ (Add Device)</span>}
+          </button>
+        </div>
+      )}
 
       {/* Navigation List */}
       <nav style={{ flex: 1, padding: isCollapsed ? 0 : '8px 12px', overflowY: 'auto' }}>
@@ -208,10 +208,10 @@ export function Sidebar({ activeTab, setActiveTab, onOpenAddDevice, isMobileMenu
               </div>
               <div style={{ overflow: 'hidden' }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                  {user.name || user.login}
+                  {user.isShared ? 'Public Viewer' : (user.name || user.login)}
                 </div>
-                <div style={{ fontSize: 10, color: user.isEmergency ? '#fbbf24' : 'var(--cyan)', fontWeight: 600 }}>
-                  {user.isEmergency ? '🚨 Admin (Break-Glass)' : `${user.role} (Grafana SSO)`}
+                <div style={{ fontSize: 10, color: user.isShared ? '#38bdf8' : (user.isEmergency ? '#fbbf24' : 'var(--cyan)'), fontWeight: 600 }}>
+                  {user.isShared ? '👁️ ดูอย่างเดียว (Public)' : (user.isEmergency ? '🚨 Admin (Break-Glass)' : `${user.role} (Grafana SSO)`)}
                 </div>
               </div>
             </div>
@@ -219,7 +219,7 @@ export function Sidebar({ activeTab, setActiveTab, onOpenAddDevice, isMobileMenu
               onClick={logout}
               className="btn-icon"
               style={{ width: 28, height: 28, flexShrink: 0 }}
-              title="ออกจากระบบ"
+              title={user.isShared ? 'สลับไปยังหน้าเข้าสู่ระบบ (Sign In)' : 'ออกจากระบบ'}
             >
               <LogOut size={13} />
             </button>

@@ -17,8 +17,10 @@ import { TopologyCanvas } from './TopologyCanvas';
 import { NeighborModal } from './NeighborModal';
 import { TopologyDiscoveryModal } from './TopologyDiscoveryModal';
 import { useTopology } from '../../context/TopologyContext';
+import { useAuth } from '../../context/AuthContext';
 
 export function TopologyView({ onOpenAddDevice, onOpenEditDevice }) {
+  const { canEdit } = useAuth();
   const {
     topoNodes,
     topoLinks,
@@ -264,14 +266,16 @@ export function TopologyView({ onOpenAddDevice, onOpenEditDevice }) {
             <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
             <span>{isLoading ? 'กำลังโหลด...' : 'รีเฟรช'}</span>
           </button>
-          <button
-            onClick={() => onOpenAddDevice()}
-            className="btn btn-secondary"
-            style={{ fontSize: 12, padding: '7px 14px' }}
-          >
-            <PlusCircle size={14} />
-            <span>เพิ่มอุปกรณ์</span>
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => onOpenAddDevice()}
+              className="btn btn-secondary"
+              style={{ fontSize: 12, padding: '7px 14px' }}
+            >
+              <PlusCircle size={14} />
+              <span>เพิ่มอุปกรณ์</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -297,15 +301,17 @@ export function TopologyView({ onOpenAddDevice, onOpenEditDevice }) {
           <div style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 450 }}>
             No devices or neighbor links discovered. Add switches or launch semi-automatic topology discovery to map your network architecture.
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-            <button onClick={() => onOpenAddDevice()} className="btn btn-primary" style={{ fontSize: 12, padding: '7px 16px' }}>
-              + Add Device
-            </button>
-            <button onClick={runDiscoveryPipeline} className="btn btn-secondary" style={{ fontSize: 12, padding: '7px 16px' }} disabled={isDiscovering}>
-              <Sparkles size={13} />
-              <span>Run Topology Discovery</span>
-            </button>
-          </div>
+          {canEdit && (
+            <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+              <button onClick={() => onOpenAddDevice()} className="btn btn-primary" style={{ fontSize: 12, padding: '7px 16px' }}>
+                + Add Device
+              </button>
+              <button onClick={runDiscoveryPipeline} className="btn btn-secondary" style={{ fontSize: 12, padding: '7px 16px' }} disabled={isDiscovering}>
+                <Sparkles size={13} />
+                <span>Run Topology Discovery</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 

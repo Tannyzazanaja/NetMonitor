@@ -5,7 +5,7 @@ import { useDevices } from '../../context/DeviceContext';
 import { useAlerts } from '../../context/AlertContext';
 import { useAuth } from '../../context/AuthContext';
 
-export function Navbar({ onMenuClick, isSidebarCollapsed }) {
+export function Navbar({ onMenuClick, isSidebarCollapsed, isPublicShared = false }) {
   const { settings, isConnected } = useSettings();
   const { devices } = useDevices();
   const { criticalCount } = useAlerts();
@@ -42,7 +42,7 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: isSidebarCollapsed ? '0 32px 0 64px' : '0 32px',
+        padding: isSidebarCollapsed ? (isPublicShared ? '0 32px' : '0 32px 0 64px') : '0 32px',
       }}
     >
       {/* Left: Org Title */}
@@ -179,22 +179,22 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }) {
                   textOverflow: 'ellipsis',
                 }}
               >
-                {user.name || user.login}
+                {user.isShared ? 'Public Viewer' : (user.name || user.login)}
               </div>
               <div
                 className="navbar-user-role"
                 style={{
                   fontSize: 10,
-                  color: user.isEmergency ? '#fbbf24' : (user.role === 'Admin' ? 'var(--cyan)' : '#fb923c'),
+                  color: user.isShared ? '#38bdf8' : (user.isEmergency ? '#fbbf24' : (user.role === 'Admin' ? 'var(--cyan)' : '#fb923c')),
                   fontWeight: 600,
                   whiteSpace: 'nowrap',
                 }}
               >
                 <span className="navbar-role-full">
-                  {user.isEmergency ? '🚨 Admin (Break-Glass)' : `${user.role} (Grafana SSO)`}
+                  {user.isShared ? '👁️ ดูอย่างเดียว (Public Share)' : (user.isEmergency ? '🚨 Admin (Break-Glass)' : `${user.role} (Grafana SSO)`)}
                 </span>
                 <span className="navbar-role-short">
-                  {user.isEmergency ? '🚨 Break-Glass' : user.role}
+                  {user.isShared ? '👁️ ดูอย่างเดียว' : (user.isEmergency ? '🚨 Break-Glass' : user.role)}
                 </span>
               </div>
             </div>
@@ -213,7 +213,7 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }) {
                 transition: 'color 0.2s',
                 flexShrink: 0,
               }}
-              title="ออกจากระบบ (Sign Out)"
+              title={user.isShared ? 'สลับไปยังหน้าเข้าสู่ระบบ (Sign In)' : 'ออกจากระบบ (Sign Out)'}
               onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--red)')}
               onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
             >

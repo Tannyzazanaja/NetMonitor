@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Menu } from 'lucide-react';
-import { ToastProvider } from './context/ToastContext';
+import { ToastProvider, useToast } from './context/ToastContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DeviceProvider } from './context/DeviceContext';
@@ -14,7 +14,6 @@ import { SetupWizard } from './components/setup/SetupWizard';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { TopologyView } from './components/topology/TopologyView';
 import { DeviceManagerView } from './components/devices/DeviceManagerView';
-import { GrafanaView } from './components/grafana/GrafanaView';
 import { TrafficView } from './components/traffic/TrafficView';
 import { ServicesView } from './components/services/ServicesView';
 import { AlertsView } from './components/alerts/AlertsView';
@@ -25,6 +24,8 @@ import { DeviceFormModal } from './components/devices/DeviceFormModal';
 import { ExportYamlModal } from './components/devices/ExportYamlModal';
 
 function MainApp() {
+  const { canEdit, user } = useAuth();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isAddDeviceOpen, setIsAddDeviceOpen] = useState(false);
   const [editingDeviceIp, setEditingDeviceIp] = useState(null);
@@ -42,12 +43,20 @@ function MainApp() {
   };
 
   const handleOpenAdd = (prefill = null) => {
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถเพิ่มอุปกรณ์ได้');
+      return;
+    }
     setEditingDeviceIp(null);
     setPrefillDevice(prefill);
     setIsAddDeviceOpen(true);
   };
 
   const handleOpenEdit = (ip) => {
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถแก้ไขอุปกรณ์ได้');
+      return;
+    }
     setEditingDeviceIp(ip);
     setPrefillDevice(null);
     setIsAddDeviceOpen(true);
@@ -58,6 +67,20 @@ function MainApp() {
     setEditingDeviceIp(null);
     setPrefillDevice(null);
   };
+
+  // Shared Read-Only Kiosk / Wallboard Mode (เอาแค่หน้า Dashboard อย่างเดียว)
+  if (user?.isShared) {
+    return (
+      <div className="app-container public-wallboard-mode" style={{ minHeight: '100vh', background: 'var(--bg-app)' }}>
+        <Navbar isSidebarCollapsed={true} isPublicShared={true} />
+        <div className="main-content" style={{ marginLeft: 0, width: '100%', maxWidth: '100%' }}>
+          <main className="page-wrapper" style={{ maxWidth: '100%', padding: '24px 32px' }}>
+            <DashboardView />
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`app-container ${isDesktopSidebarCollapsed ? 'collapsed-sidebar' : ''}`}>
@@ -123,10 +146,6 @@ function MainApp() {
             />
           )}
 
-          {activeTab === 'grafana' && (
-            <GrafanaView />
-          )}
-
           {activeTab === 'traffic' && (
             <TrafficView />
           )}
@@ -139,7 +158,7 @@ function MainApp() {
             <AlertsView />
           )}
 
-          {activeTab === 'settings' && (
+          {activeTab === 'settings' && !user?.isShared && (
             <SettingsView />
           )}
         </main>

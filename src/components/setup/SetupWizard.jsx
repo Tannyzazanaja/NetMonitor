@@ -340,7 +340,7 @@ export function SetupWizard({ onComplete }) {
               </div>
 
               <div className="input-group">
-                <label className="input-label">Grafana Analytics Server URL (Optional)</label>
+                <label className="input-label">Grafana Auth & User Management URL (Port 3000)</label>
                 <input
                   type="text"
                   value={formData.grafanaUrl}
@@ -350,7 +350,7 @@ export function SetupWizard({ onComplete }) {
                   style={{ fontFamily: 'var(--font-mono)' }}
                 />
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  Used for embedding rich interactive historical dashboards via iframe.
+                  Used for User Management and Login SSO verification (defaults to http://localhost:3000).
                 </span>
               </div>
             </div>
@@ -487,8 +487,8 @@ export function SetupWizard({ onComplete }) {
                   <code style={{ color: 'var(--cyan)' }}>{formData.prometheusUrl}</code>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 6 }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Grafana Server:</span>
-                  <code style={{ color: 'var(--text-secondary)' }}>{formData.grafanaUrl || 'None'}</code>
+                  <span style={{ color: 'var(--text-muted)' }}>Grafana Auth Server:</span>
+                  <code style={{ color: 'var(--text-secondary)' }}>{formData.grafanaUrl || 'http://localhost:3000'}</code>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 6 }}>
                   <span style={{ color: 'var(--text-muted)' }}>Default Discovery CIDR:</span>

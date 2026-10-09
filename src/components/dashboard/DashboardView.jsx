@@ -32,7 +32,10 @@ import {
   Clock,
   Cpu,
   Thermometer,
-  Wind
+  Wind,
+  Share2,
+  Link2,
+  Check
 } from 'lucide-react';
 import { Line, Doughnut } from 'react-chartjs-2';
 import {
@@ -52,6 +55,7 @@ import { useDevices } from '../../context/DeviceContext';
 import { useAlerts } from '../../context/AlertContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { formatTrafficMbps } from '../../utils/trafficFormat';
 
 export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }) {
@@ -59,6 +63,44 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
   const { activeAlerts, criticalCount } = useAlerts();
   const { promClient, settings } = useSettings();
   const { showToast } = useToast();
+  const { canEdit, user } = useAuth();
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
+
+  const handleCopyShareLink = useCallback(() => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const shareUrl = `${origin}/?share=readonly`;
+
+    const copyFallback = (text) => {
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        setCopiedShareLink(true);
+        showToast('success', 'คัดลอกลิงก์สำเร็จ!', 'นำลิงก์นี้ไปเปิดดูบนหน้าจอ TV หรือเครื่องอื่นได้ทันทีโดยไม่ต้องล็อกอิน (โหมดดูอย่างเดียว)');
+        setTimeout(() => setCopiedShareLink(false), 3000);
+      } catch (e) {
+        showToast('info', 'ลิงก์สำหรับแชร์แดชบอร์ด', text);
+      }
+    };
+
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(shareUrl)
+        .then(() => {
+          setCopiedShareLink(true);
+          showToast('success', 'คัดลอกลิงก์สำเร็จ!', 'นำลิงก์นี้ไปเปิดดูบนหน้าจอ TV หรือเครื่องอื่นได้ทันทีโดยไม่ต้องล็อกอิน (โหมดดูอย่างเดียว)');
+          setTimeout(() => setCopiedShareLink(false), 3000);
+        })
+        .catch(() => copyFallback(shareUrl));
+    } else {
+      copyFallback(shareUrl);
+    }
+  }, [showToast]);
 
   const matrixPanelRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -517,6 +559,82 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* 0. Top Share Toolbar & Public Wallboard Banner */}
+      <div
+        className="dashboard-share-toolbar"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          padding: '12px 18px',
+          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.75) 0%, rgba(11, 16, 34, 0.85) 100%)',
+          borderRadius: 'var(--radius)',
+          border: '1px solid var(--border)',
+          backdropFilter: 'blur(10px)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              background: user?.isShared ? '#38bdf8' : '#10b981',
+              boxShadow: `0 0 10px ${user?.isShared ? '#38bdf8' : '#10b981'}`,
+            }}
+          />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-heading)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>NOC Wallboard & Telemetry Display</span>
+              {user?.isShared && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: '#38bdf8',
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    border: '1px solid rgba(56, 189, 248, 0.35)',
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                  }}
+                >
+                  👁️ โหมดดูอย่างเดียว (Public Read-Only)
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              {user?.isShared
+                ? 'หน้าจอแสดงผลกลาง • อัปเดตข้อมูลแบบเรียลไทม์โดยไม่ต้องล็อกอิน (ระบบป้องกันการแก้ไขข้อมูลทุกประเภท)'
+                : 'ศูนย์ควบคุมและเฝ้าระวังระบบเครือข่าย — สามารถคัดลอกลิงก์เพื่อนำไปเปิดบนจอ TV หรือเครื่องอื่นได้ทันทีโดยไม่ต้องล็อกอิน'}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={handleCopyShareLink}
+            className="btn btn-secondary"
+            style={{
+              fontSize: 12,
+              padding: '6px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: copiedShareLink ? 'rgba(16, 185, 129, 0.15)' : 'rgba(0, 212, 255, 0.1)',
+              borderColor: copiedShareLink ? 'rgba(16, 185, 129, 0.4)' : 'rgba(0, 212, 255, 0.3)',
+              color: copiedShareLink ? 'var(--green)' : 'var(--primary)',
+              transition: 'all 0.2s ease',
+            }}
+            title="คัดลอกลิงก์แดชบอร์ด สามารถเปิดที่เครื่องไหนก็ได้โดยไม่ต้องเข้าสู่ระบบ (ดูได้อย่างเดียว)"
+          >
+            {copiedShareLink ? <Check size={14} /> : <Share2 size={14} />}
+            <span>{copiedShareLink ? 'คัดลอกลิงก์แล้ว!' : '🔗 คัดลอกลิงก์แดชบอร์ด (ดูอย่างเดียว)'}</span>
+          </button>
+        </div>
+      </div>
+
       {/* Empty State Onboarding Banner */}
       {devices.length === 0 && (
         <div
@@ -558,20 +676,24 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={() => onSelectTab('devices')}
-              className="btn btn-secondary"
-              style={{ fontSize: 12, padding: '7px 14px' }}
-            >
-              Go to Device Manager
-            </button>
-            <button
-              onClick={onOpenAddDevice}
-              className="btn btn-primary"
-              style={{ fontSize: 12, padding: '7px 16px' }}
-            >
-              + Add First Device
-            </button>
+            {onSelectTab && (
+              <button
+                onClick={() => onSelectTab('devices')}
+                className="btn btn-secondary"
+                style={{ fontSize: 12, padding: '7px 14px' }}
+              >
+                Go to Device Manager
+              </button>
+            )}
+            {canEdit && (
+              <button
+                onClick={onOpenAddDevice}
+                className="btn btn-primary"
+                style={{ fontSize: 12, padding: '7px 16px' }}
+              >
+                + Add First Device
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -938,31 +1060,35 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
 
             {/* Action Buttons */}
             <div style={{ display: 'flex', gap: 10, marginTop: 2 }}>
-              <button
-                onClick={() => {
-                  setSelectedMatrixDevice(null);
-                  if (document.fullscreenElement) document.exitFullscreen();
-                  if (onSelectTab) onSelectTab('traffic');
-                }}
-                className="btn btn-primary"
-                style={{ flex: 1, justifyContent: 'center', fontSize: 12, gap: 6 }}
-              >
-                <Activity size={14} />
-                <span>กราฟ Traffic</span>
-              </button>
-              <button
-                onClick={() => {
-                  const ip = selectedMatrixDevice.ip;
-                  setSelectedMatrixDevice(null);
-                  if (document.fullscreenElement) document.exitFullscreen();
-                  if (onOpenEditDevice) onOpenEditDevice(ip);
-                }}
-                className="btn btn-outline"
-                style={{ flex: 1, justifyContent: 'center', fontSize: 12, gap: 6 }}
-              >
-                <SlidersHorizontal size={14} />
-                <span>แก้ไขอุปกรณ์</span>
-              </button>
+              {onSelectTab && (
+                <button
+                  onClick={() => {
+                    setSelectedMatrixDevice(null);
+                    if (document.fullscreenElement) document.exitFullscreen();
+                    onSelectTab('traffic');
+                  }}
+                  className="btn btn-primary"
+                  style={{ flex: 1, justifyContent: 'center', fontSize: 12, gap: 6 }}
+                >
+                  <Activity size={14} />
+                  <span>กราฟ Traffic</span>
+                </button>
+              )}
+              {canEdit && (
+                <button
+                  onClick={() => {
+                    const ip = selectedMatrixDevice.ip;
+                    setSelectedMatrixDevice(null);
+                    if (document.fullscreenElement) document.exitFullscreen();
+                    if (onOpenEditDevice) onOpenEditDevice(ip);
+                  }}
+                  className="btn btn-outline"
+                  style={{ flex: 1, justifyContent: 'center', fontSize: 12, gap: 6 }}
+                >
+                  <SlidersHorizontal size={14} />
+                  <span>แก้ไขอุปกรณ์</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1399,19 +1525,21 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
               <Activity size={18} color="var(--primary)" style={{ flexShrink: 0 }} />
               <span style={{ wordBreak: 'break-word' }}>WAN Gateway In / Out Realtime Stream</span>
             </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button
-                onClick={() => onSelectTab('grafana')}
-                className="btn btn-secondary"
-                style={{ fontSize: 11, padding: '4px 10px', color: '#fb923c', borderColor: 'rgba(249, 115, 22, 0.35)', background: 'rgba(249, 115, 22, 0.1)' }}
-                  title="วิเคราะห์เชิงลึกด้วย Grafana"
-              >
-                  📊 Grafana Analytics ➔
-              </button>
-              <button onClick={() => onSelectTab('traffic')} className="btn btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }}>
-                  ดูรายละเอียด ➔
-              </button>
-            </div>
+            {onSelectTab && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => onSelectTab('analytics')}
+                  className="btn btn-secondary"
+                  style={{ fontSize: 11, padding: '4px 10px', color: 'var(--primary)', borderColor: 'rgba(0, 212, 255, 0.35)', background: 'rgba(0, 212, 255, 0.1)' }}
+                  title="วิเคราะห์ข้อมูลประวัติย้อนหลัง (Historical Analytics)"
+                >
+                    📈 Analytics ➔
+                </button>
+                <button onClick={() => onSelectTab('traffic')} className="btn btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }}>
+                    ดูรายละเอียด ➔
+                </button>
+              </div>
+            )}
           </div>
           <div style={{ height: 240, position: 'relative', width: '100%', minWidth: 0 }}>
             <Line data={trafficChartData} options={chartOptions} />
@@ -1425,9 +1553,11 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
               <PieIcon size={18} color="var(--green)" style={{ flexShrink: 0 }} />
               <span>Device Status Circle</span>
             </div>
-            <button onClick={() => onSelectTab('devices')} className="btn btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }}>
-                จัดการ ➔
-            </button>
+            {onSelectTab && (
+              <button onClick={() => onSelectTab('devices')} className="btn btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }}>
+                  จัดการ ➔
+              </button>
+            )}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '4px 0' }}>
@@ -1479,9 +1609,11 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
               <AlertTriangle size={16} style={{ flexShrink: 0 }} />
                 <span>แจ้งเตือน ({activeAlerts.length})</span>
             </div>
-            <button onClick={() => onSelectTab('alerts')} className="btn btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }}>
-                ทั้งหมด ➔
-            </button>
+            {onSelectTab && (
+              <button onClick={() => onSelectTab('alerts')} className="btn btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }}>
+                  ทั้งหมด ➔
+              </button>
+            )}
           </div>
           
           {activeAlerts.length === 0 ? (
@@ -1754,25 +1886,27 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
             </div>
 
             {/* Bottom Button to Traffic Tab */}
-            <button
-              onClick={() => onSelectTab('traffic')}
-              className="btn btn-secondary"
-              style={{
-                width: '100%',
-                padding: '10px',
-                fontSize: 12,
-                justifyContent: 'center',
-                gap: 8,
-                background: 'rgba(0, 212, 255, 0.1)',
-                border: '1px solid rgba(0, 212, 255, 0.3)',
-                color: 'var(--primary)',
-                fontWeight: 700,
-              }}
-            >
-              <BarChart2 size={15} />
-              <span>เปิดดูการวิเคราะห์ทราฟฟิกละเอียด</span>
-              <ArrowRight size={14} />
-            </button>
+            {onSelectTab && (
+              <button
+                onClick={() => onSelectTab('traffic')}
+                className="btn btn-secondary"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  fontSize: 12,
+                  justifyContent: 'center',
+                  gap: 8,
+                  background: 'rgba(0, 212, 255, 0.1)',
+                  border: '1px solid rgba(0, 212, 255, 0.3)',
+                  color: 'var(--primary)',
+                  fontWeight: 700,
+                }}
+              >
+                <BarChart2 size={15} />
+                <span>เปิดดูการวิเคราะห์ทราฟฟิกละเอียด</span>
+                <ArrowRight size={14} />
+              </button>
+            )}
           </div>
         </div>
       </div>

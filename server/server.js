@@ -340,9 +340,17 @@ function sanitizeDbForFrontend(data, userRole = 'Viewer') {
     copy.settings.defaultCommunity = hasComm ? '***' : '';
     copy.settings.lineChannelToken = hasLineToken ? '***' : '';
     copy.settings.lineTargetId = hasLineTarget ? '***' : '';
-    copy.settings.emergencyUsername = copy.settings.emergencyUsername || 'emergency';
-    copy.settings.emergencyPassword = '***';
-    copy.settings.hasEmergencyAuth = Boolean(copy.settings.emergencyPasswordHash || copy.settings.emergencyPassword);
+
+    // Emergency authentication credentials - Admin only!
+    if (userRole === 'Admin') {
+      copy.settings.emergencyUsername = copy.settings.emergencyUsername || 'emergency';
+      copy.settings.emergencyPassword = '***';
+      copy.settings.hasEmergencyAuth = Boolean(copy.settings.emergencyPasswordHash || copy.settings.emergencyPassword);
+    } else {
+      delete copy.settings.emergencyUsername;
+      delete copy.settings.emergencyPassword;
+      delete copy.settings.hasEmergencyAuth;
+    }
 
     // Prevent password hash or salt exposure
     delete copy.settings.emergencyPasswordHash;
@@ -390,6 +398,24 @@ function getSessionFromReq(req) {
     try {
       const parsedUrl = new URL(req.url, `http://${req.headers?.host || 'localhost'}`);
       token = parsedUrl.searchParams.get('token') || parsedUrl.searchParams.get('session');
+    } catch {}
+  }
+
+  // 4. Query string share parameter for guest read-only access (GET requests only)
+  if (!token && req.url) {
+    try {
+      const parsedUrl = new URL(req.url, `http://${req.headers?.host || 'localhost'}`);
+      const shareVal = parsedUrl.searchParams.get('share');
+      if ((shareVal === 'readonly' || shareVal === 'true') && req.method === 'GET') {
+        return {
+          username: 'public_viewer',
+          name: 'Read-Only Viewer',
+          role: 'Viewer',
+          isShared: true,
+          isEmergency: false,
+          expires: Date.now() + SESSION_EXPIRY
+        };
+      }
     } catch {}
   }
 
@@ -2618,9 +2644,69 @@ const server = http.createServer(async (req, res) => {
         username: session.username,
         role: session.role,
         name: session.name,
-        isEmergency: !!session.isEmergency
+        isEmergency: !!session.isEmergency,
+        isShared: !!session.isShared
       }
     });
+  }
+
+  // Read-Only Dashboard Share Session Endpoint (Allows opening dashboard without credentials)
+  if (pathname === '/api/auth/share-session' && (req.method === 'POST' || req.method === 'GET')) {
+    try {
+      let shareKey = 'readonly';
+      if (req.method === 'POST') {
+        const body = await parseBody(req);
+        if (body?.shareKey) shareKey = String(body.shareKey).trim();
+      } else {
+        const parsedUrl = new URL(req.url, `http://${req.headers?.host || 'localhost'}`);
+        if (parsedUrl.searchParams.get('key')) shareKey = parsedUrl.searchParams.get('key').trim();
+        if (parsedUrl.searchParams.get('share')) shareKey = parsedUrl.searchParams.get('share').trim();
+      }
+
+      const db = readDb();
+      const settings = db.settings || {};
+      const configuredShareKey = settings.dashboardShareKey || 'readonly';
+
+      if (shareKey !== configuredShareKey && shareKey !== 'readonly') {
+        return sendJson(res, 403, {
+          success: false,
+          error: 'รหัส Share Link ไม่ถูกต้อง หรือถูกยกเลิกแล้ว',
+          code: 'FORBIDDEN'
+        });
+      }
+
+      const token = 'share_' + crypto.randomBytes(24).toString('hex');
+      const shareUser = {
+        username: 'public_viewer',
+        name: 'Read-Only Viewer',
+        role: 'Viewer',
+        isShared: true,
+        isEmergency: false,
+        expires: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30-day rolling session
+      };
+
+      sessions.set(token, shareUser);
+
+      const secureFlag = (req.headers && (req.headers['x-forwarded-proto'] === 'https' || req.socket?.encrypted)) ? '; Secure' : '';
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Set-Cookie': `nm_session=${token}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax${secureFlag}`,
+      });
+      return res.end(JSON.stringify({
+        success: true,
+        token,
+        user: {
+          username: shareUser.username,
+          name: shareUser.name,
+          role: shareUser.role,
+          isShared: true,
+          isEmergency: false
+        }
+      }));
+    } catch (err) {
+      console.error('[Server] Share session error:', err);
+      return sendJson(res, 500, { success: false, error: err.message });
+    }
   }
 
   if (pathname === '/api/auth/logout' && req.method === 'POST') {
@@ -3467,21 +3553,24 @@ const server = http.createServer(async (req, res) => {
           }
         }
         if (body.settings && typeof body.settings === 'object') {
-          const validation = validateSettings(body.settings);
-          if (validation.valid) {
-            const prev = db.settings || {};
-            const next = { ...prev, ...validation.cleanSettings };
-            if (
-              prev.defaultCommunity !== next.defaultCommunity ||
-              prev.defaultModule !== next.defaultModule ||
-              prev.prometheusUrl !== next.prometheusUrl
-            ) {
-              devicesOrSnmpChanged = true;
+          // System settings & emergency credentials can ONLY be modified by Admin
+          if (req.user?.role === 'Admin') {
+            const validation = validateSettings(body.settings);
+            if (validation.valid) {
+              const prev = db.settings || {};
+              const next = { ...prev, ...validation.cleanSettings };
+              if (
+                prev.defaultCommunity !== next.defaultCommunity ||
+                prev.defaultModule !== next.defaultModule ||
+                prev.prometheusUrl !== next.prometheusUrl
+              ) {
+                devicesOrSnmpChanged = true;
+              }
+              if (prev.refreshInterval !== next.refreshInterval) {
+                pollerChanged = true;
+              }
+              db.settings = next;
             }
-            if (prev.refreshInterval !== next.refreshInterval) {
-              pollerChanged = true;
-            }
-            db.settings = next;
           }
         }
         if (body.topologyPositions && typeof body.topologyPositions === 'object') {

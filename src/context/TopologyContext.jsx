@@ -22,12 +22,14 @@ import {
 import { isInfrastructureDevice } from '../services/deviceClassifier';
 import { useSettings } from './SettingsContext';
 import { useDevices } from './DeviceContext';
+import { useAuth } from './AuthContext';
 
 const TopologyContext = createContext(null);
 
 export function TopologyProvider({ children }) {
   const { devices } = useDevices();
   const { promClient } = useSettings();
+  const { canEdit } = useAuth();
 
   const devicesRef = useRef(devices);
   useEffect(() => {
@@ -310,20 +312,21 @@ export function TopologyProvider({ children }) {
   // Handle explicit layout mode changes and recalculate baseline coordinates
   const handleSetLayoutMode = useCallback((newMode) => {
     setLayoutMode(newMode);
+    let newPositions = null;
     if (newMode === 'hierarchical' || newMode === 'tree') {
-      const treePos = computeHierarchicalLayout(topoNodes, rawLinks);
-      setPersistedPositions(treePos);
-      StorageService.saveTopologyPositions(treePos);
+      newPositions = computeHierarchicalLayout(topoNodes, rawLinks);
     } else if (newMode === 'force') {
-      const forcePos = computeForceDirectedLayout(topoNodes, rawLinks);
-      setPersistedPositions(forcePos);
-      StorageService.saveTopologyPositions(forcePos);
+      newPositions = computeForceDirectedLayout(topoNodes, rawLinks);
     } else if (newMode === 'radar') {
-      const radarPos = computeRadarLayout(topoNodes);
-      setPersistedPositions(radarPos);
-      StorageService.saveTopologyPositions(radarPos);
+      newPositions = computeRadarLayout(topoNodes);
     }
-  }, [topoNodes, rawLinks]);
+    if (newPositions) {
+      setPersistedPositions(newPositions);
+      if (canEdit) {
+        StorageService.saveTopologyPositions(newPositions);
+      }
+    }
+  }, [topoNodes, rawLinks, canEdit]);
 
   // Sync positions from server state on mount
   useEffect(() => {
@@ -355,6 +358,7 @@ export function TopologyProvider({ children }) {
 
   // Update node position during Drag & Drop with debounced server write
   const updateNodePosition = useCallback((nodeId, x, y) => {
+    if (!canEdit) return;
     setPersistedPositions(prev => {
       const updated = {
         ...(prev || {}),
@@ -370,10 +374,11 @@ export function TopologyProvider({ children }) {
 
       return updated;
     });
-  }, []);
+  }, [canEdit]);
 
   // Semi-Automatic Discovery Execution
   const runDiscoveryPipeline = useCallback(async () => {
+    if (!canEdit) return null;
     setIsDiscovering(true);
     try {
       const currentDevices = devicesRef.current;
@@ -440,11 +445,11 @@ export function TopologyProvider({ children }) {
     } finally {
       setIsDiscovering(false);
     }
-  }, [rawDiscoveryData, promClient, targetCatalog, sysNameMap, macMap, ifNameMap, rawLinks]);
+  }, [canEdit, rawDiscoveryData, promClient, targetCatalog, sysNameMap, macMap, ifNameMap, rawLinks]);
 
   // Apply Discovered Topology & Persist to Server
   const applyDiscovery = useCallback(async (selectedLayout = 'hierarchical') => {
-    if (!discoveryPreview) return;
+    if (!canEdit || !discoveryPreview) return;
 
     const { nodes, edges } = discoveryPreview;
     setRawLinks(edges);
@@ -478,11 +483,11 @@ export function TopologyProvider({ children }) {
     setPersistedTopology(payload);
     await StorageService.saveTopology(payload);
     setIsDiscoveryModalOpen(false);
-  }, [discoveryPreview]);
+  }, [canEdit, discoveryPreview]);
 
   // Add Manual Link
   const addManualLink = useCallback((sourceIp, srcPort, targetIp, dstPort) => {
-    if (!sourceIp || !targetIp || sourceIp === targetIp) return;
+    if (!canEdit || !sourceIp || !targetIp || sourceIp === targetIp) return;
     const newEdge = {
       id: buildCanonicalEdgeKey(sourceIp, srcPort, targetIp, dstPort),
       source: sourceIp,
@@ -503,10 +508,11 @@ export function TopologyProvider({ children }) {
       positions: nodePositions,
       metadata: { lastUpdated: new Date().toISOString() },
     });
-  }, [rawLinks, topoNodes, nodePositions]);
+  }, [canEdit, rawLinks, topoNodes, nodePositions]);
 
   // Remove Link
   const removeLink = useCallback((edgeId) => {
+    if (!canEdit) return;
     const updated = rawLinks.filter(l => l.id !== edgeId);
     setRawLinks(updated);
     StorageService.saveTopology({
@@ -515,7 +521,7 @@ export function TopologyProvider({ children }) {
       positions: nodePositions,
       metadata: { lastUpdated: new Date().toISOString() },
     });
-  }, [rawLinks, topoNodes, nodePositions]);
+  }, [canEdit, rawLinks, topoNodes, nodePositions]);
 
   // Export Topology as JSON
   const exportTopologyJson = useCallback(() => {

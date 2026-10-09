@@ -3,10 +3,12 @@ import { StorageService } from '../services/storageService';
 import { detectOSAndType } from '../services/deviceClassifier';
 import { useSettings } from './SettingsContext';
 import { useToast } from './ToastContext';
+import { useAuth } from './AuthContext';
 
 const DeviceContext = createContext(null);
 
 export function DeviceProvider({ children }) {
+  const { canEdit } = useAuth();
   const [customDevices, setCustomDevices] = useState(() => StorageService.getCustomDevices());
   const [deletedIps, setDeletedIps] = useState(() => StorageService.getDeletedIps());
   const [deviceStats, setDeviceStats] = useState({}); // { [ip]: { isOnline, latency, sysName, sysDescr, uptime } }
@@ -313,6 +315,10 @@ export function DeviceProvider({ children }) {
   }, [devices, categoryFilter, typeFilter, searchQuery]);
 
   const addOrUpdateDevice = useCallback((deviceInput, isEdit = false, originalIp = null) => {
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ (Permission Denied)', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถเพิ่มหรือแก้ไขอุปกรณ์ได้');
+      throw new Error('Forbidden: Viewer role cannot add or edit devices');
+    }
     const ip = (deviceInput.ip || '').trim();
     if (!ip) throw new Error('IP Address is required');
 
@@ -401,9 +407,13 @@ export function DeviceProvider({ children }) {
     }
 
     return newDevice;
-  }, [devices, customDevices, deletedIps, persistCustomDevices]);
+  }, [devices, customDevices, deletedIps, persistCustomDevices, canEdit, showToast]);
 
   const addDevicesBulk = useCallback((deviceInputs) => {
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ (Permission Denied)', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถเพิ่มอุปกรณ์ได้');
+      return 0;
+    }
     let updatedList = [...customDevices];
     let newDeletedIps = [...deletedIps];
     const addedDevices = [];
@@ -453,9 +463,13 @@ export function DeviceProvider({ children }) {
     }
 
     return addedDevices.length;
-  }, [customDevices, deletedIps, persistCustomDevices]);
+  }, [customDevices, deletedIps, persistCustomDevices, canEdit, showToast]);
 
   const updateDeviceIp = useCallback((oldIp, newIp) => {
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ (Permission Denied)', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถเปลี่ยน IP อุปกรณ์ได้');
+      return;
+    }
     const cleanOld = (oldIp || '').trim();
     const cleanNew = (newIp || '').trim();
     if (!cleanOld || !cleanNew || cleanOld === cleanNew) return;
@@ -474,9 +488,13 @@ export function DeviceProvider({ children }) {
     const updatedList = customDevices.filter(d => d.ip !== cleanOld && d.ip !== cleanNew).concat(updatedDev);
     persistCustomDevices(updatedList);
     showToast('success', 'อัพเดต IP สำเร็จ', `เปลี่ยน IP ของ ${targetDev.name} จาก ${cleanOld} เป็น ${cleanNew} เรียบร้อยแล้ว`);
-  }, [devices, customDevices, persistCustomDevices, showToast]);
+  }, [devices, customDevices, persistCustomDevices, showToast, canEdit]);
 
   const deleteDevice = useCallback((ip) => {
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ (Permission Denied)', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถลบอุปกรณ์ได้');
+      return;
+    }
     const updatedList = customDevices.filter(d => d.ip !== ip);
     persistCustomDevices(updatedList);
 
@@ -485,7 +503,7 @@ export function DeviceProvider({ children }) {
     StorageService.saveDeletedIps(newDeleted);
 
     showToast('warning', 'ลบอุปกรณ์แล้ว', `ลบอุปกรณ์ ${ip} ออกจากระบบเรียบร้อยแล้ว`);
-  }, [customDevices, deletedIps, persistCustomDevices, showToast]);
+  }, [customDevices, deletedIps, persistCustomDevices, showToast, canEdit]);
 
   const autoDetect = useCallback(async (ip) => {
     if (!promClient) return null;
@@ -493,6 +511,10 @@ export function DeviceProvider({ children }) {
   }, [promClient]);
 
   const uploadToServer = useCallback(async () => {
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ (Permission Denied)', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถบันทึกข้อมูลขึ้นเซิร์ฟเวอร์ได้');
+      return false;
+    }
     try {
       const res = await StorageService.saveCustomDevices(customDevices);
       if (res && res.ok) {
@@ -506,7 +528,7 @@ export function DeviceProvider({ children }) {
       showToast('error', 'เกิดข้อผิดพลาด', e.message);
       return false;
     }
-  }, [customDevices, showToast]);
+  }, [customDevices, showToast, canEdit]);
 
   const refreshFromServer = useCallback(async () => {
     try {

@@ -6,12 +6,14 @@ import { useDevices } from '../../context/DeviceContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useTopology } from '../../context/TopologyContext';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
 export function DeviceFormModal({ isOpen, onClose, initialIp = null, initialData = null }) {
   const { devices, addOrUpdateDevice, autoDetect } = useDevices();
   const { settings } = useSettings();
   const { refreshTopology } = useTopology();
   const { showToast } = useToast();
+  const { canEdit } = useAuth();
 
   const [ip, setIp] = useState('');
   const [name, setName] = useState('');
@@ -160,6 +162,10 @@ export function DeviceFormModal({ isOpen, onClose, initialIp = null, initialData
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถบันทึกอุปกรณ์ได้');
+      return;
+    }
     if (!ip.trim()) {
       showToast('warning', 'ข้อมูลไม่ครบ', 'กรุณากรอก IP Address');
       return;
@@ -219,6 +225,8 @@ export function DeviceFormModal({ isOpen, onClose, initialIp = null, initialData
       showToast('error', 'บันทึกไม่สำเร็จ', err.message);
     }
   };
+
+  if (!isOpen || !canEdit) return null;
 
   return (
     <Modal

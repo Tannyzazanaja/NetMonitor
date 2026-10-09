@@ -4,12 +4,14 @@ import { Modal } from '../common/Modal';
 import { useDevices } from '../../context/DeviceContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { API_BASE } from '../../services/alertStorage';
 
 export function ScannerModal({ isOpen, onClose }) {
   const { devices, addDevicesBulk } = useDevices();
   const { settings } = useSettings();
   const { showToast } = useToast();
+  const { canEdit } = useAuth();
 
   const [ipRange, setIpRange] = useState('192.168.1.1-254');
   const [community, setCommunity] = useState('');
@@ -22,6 +24,10 @@ export function ScannerModal({ isOpen, onClose }) {
   // ... (handleScan, toggleSelect, toggleAll, handleAddSelected are identical)
   const handleScan = async (e) => {
     e.preventDefault();
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถสแกนค้นหาอุปกรณ์ได้');
+      return;
+    }
     if (!ipRange.trim()) {
       showToast('warning', 'กรุณาระบุ IP Range');
       return;
@@ -99,6 +105,10 @@ export function ScannerModal({ isOpen, onClose }) {
   };
 
   const handleAddSelected = async () => {
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถเพิ่มอุปกรณ์ได้');
+      return;
+    }
     if (selectedIps.size === 0) return;
     
     setIsAdding(true);
@@ -138,6 +148,8 @@ export function ScannerModal({ isOpen, onClose }) {
       setIsAdding(false);
     }
   };
+
+  if (!isOpen || !canEdit) return null;
 
   return (
     <Modal

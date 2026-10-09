@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useDevices } from '../../context/DeviceContext';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { copyToClipboard } from '../../utils/clipboard';
 import { ScannerModal } from '../discovery/ScannerModal';
 
@@ -33,6 +34,7 @@ export function DeviceManagerView({ onOpenAddDevice, onOpenEditDevice, onOpenExp
     refreshFromServer,
   } = useDevices();
 
+  const { canEdit } = useAuth();
   const { showToast } = useToast();
   const [deletingIp, setDeletingIp] = useState(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -48,6 +50,10 @@ export function DeviceManagerView({ onOpenAddDevice, onOpenEditDevice, onOpenExp
   };
 
   const handleDeleteConfirm = (ip, name) => {
+    if (!canEdit) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ', 'เฉพาะผู้ใช้ระดับ Editor หรือ Admin เท่านั้นที่สามารถลบอุปกรณ์ได้');
+      return;
+    }
     if (window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบอุปกรณ์ "${name || ip}" (${ip}) ออกจากระบบ?`)) {
       deleteDevice(ip);
     }
@@ -99,25 +105,27 @@ export function DeviceManagerView({ onOpenAddDevice, onOpenEditDevice, onOpenExp
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setIsScannerOpen(true)}
-            className="btn btn-secondary"
-            style={{ fontSize: 12, padding: '7px 14px', borderColor: 'var(--green)', color: 'var(--green)' }}
-            title="ค้นหาอุปกรณ์อัตโนมัติในวงแลน"
-          >
-            <Search size={14} />
-            <span>Network Scanner</span>
-          </button>
-          <button
-            onClick={onOpenAddDevice}
-            className="btn btn-primary"
-            style={{ fontSize: 12, padding: '7px 16px' }}
-          >
-            <PlusCircle size={14} />
-            <span>➕ เพิ่มอุปกรณ์ (Add Device)</span>
-          </button>
-        </div>
+        {canEdit && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setIsScannerOpen(true)}
+              className="btn btn-secondary"
+              style={{ fontSize: 12, padding: '7px 14px', borderColor: 'var(--green)', color: 'var(--green)' }}
+              title="ค้นหาอุปกรณ์อัตโนมัติในวงแลน"
+            >
+              <Search size={14} />
+              <span>Network Scanner</span>
+            </button>
+            <button
+              onClick={onOpenAddDevice}
+              className="btn btn-primary"
+              style={{ fontSize: 12, padding: '7px 16px' }}
+            >
+              <PlusCircle size={14} />
+              <span>➕ เพิ่มอุปกรณ์ (Add Device)</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 2. Filter Tabs & Search Bar */}
@@ -204,14 +212,20 @@ export function DeviceManagerView({ onOpenAddDevice, onOpenEditDevice, onOpenExp
                       <div style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 420 }}>
                         No network devices currently configured in monitoring inventory. Add your switches or servers manually, or run subnet auto-discovery.
                       </div>
-                      <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                        <button onClick={() => onOpenAddDevice()} className="btn btn-primary" style={{ fontSize: 12, padding: '7px 16px' }}>
-                          + Add Device
-                        </button>
-                        <button onClick={() => setIsScannerOpen(true)} className="btn btn-secondary" style={{ fontSize: 12, padding: '7px 16px' }}>
-                          Auto-Discovery
-                        </button>
-                      </div>
+                      {canEdit ? (
+                        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                          <button onClick={() => onOpenAddDevice()} className="btn btn-primary" style={{ fontSize: 12, padding: '7px 16px' }}>
+                            + Add Device
+                          </button>
+                          <button onClick={() => setIsScannerOpen(true)} className="btn btn-secondary" style={{ fontSize: 12, padding: '7px 16px' }}>
+                            Auto-Discovery
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, fontStyle: 'italic' }}>
+                          โหมดอ่านอย่างเดียว (Viewer Role) - ไม่มีสิทธิ์เพิ่มหรือค้นหาอุปกรณ์
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -278,21 +292,25 @@ export function DeviceManagerView({ onOpenAddDevice, onOpenEditDevice, onOpenExp
                         >
                           <ExternalLink size={12} />
                         </a>
-                        <button
-                          onClick={() => onOpenEditDevice(dev.ip)}
-                          className="btn-icon"
-                          title="แก้ไขข้อมูลอุปกรณ์"
-                        >
-                          <Edit2 size={12} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteConfirm(dev.ip, dev.name)}
-                          className="btn-icon"
-                          style={{ color: '#f87171' }}
-                          title="ลบอุปกรณ์"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                        {canEdit && (
+                          <>
+                            <button
+                              onClick={() => onOpenEditDevice(dev.ip)}
+                              className="btn-icon"
+                              title="แก้ไขข้อมูลอุปกรณ์"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteConfirm(dev.ip, dev.name)}
+                              className="btn-icon"
+                              style={{ color: '#f87171' }}
+                              title="ลบอุปกรณ์"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

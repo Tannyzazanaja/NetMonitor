@@ -103,7 +103,7 @@ it('verifyEmergencyCredentials supports local break-glass aliases with hash', ()
 // -----------------------------------------------------------------------------
 console.log('\n[2] Testing Setup & Settings Sanitization:');
 
-it('sanitizeDbForFrontend strips password hash and salt from frontend payload', () => {
+it('sanitizeDbForFrontend strips password hash, salt, and emergency credentials for non-admins', () => {
   const rawDb = {
     devices: [{ ip: '10.0.0.1', name: 'SW1', community: 'snmp_secret' }],
     settings: {
@@ -114,12 +114,26 @@ it('sanitizeDbForFrontend strips password hash and salt from frontend payload', 
     }
   };
 
-  const safe = sanitizeDbForFrontend(rawDb, 'Viewer');
-  assert.strictEqual(safe.settings.defaultCommunity, '***');
-  assert.strictEqual(safe.settings.emergencyPassword, '***');
-  assert.strictEqual(safe.settings.emergencyPasswordHash, undefined, 'Hash must never leak to frontend');
-  assert.strictEqual(safe.settings.emergencyPasswordSalt, undefined, 'Salt must never leak to frontend');
-  assert.strictEqual(safe.settings.hasEmergencyAuth, true);
+  // Viewer role: all emergency details stripped
+  const safeViewer = sanitizeDbForFrontend(rawDb, 'Viewer');
+  assert.strictEqual(safeViewer.settings.defaultCommunity, '***');
+  assert.strictEqual(safeViewer.settings.emergencyPassword, undefined, 'Emergency pass stripped for Viewer');
+  assert.strictEqual(safeViewer.settings.emergencyUsername, undefined, 'Emergency user stripped for Viewer');
+  assert.strictEqual(safeViewer.settings.hasEmergencyAuth, undefined, 'Emergency flag stripped for Viewer');
+  assert.strictEqual(safeViewer.settings.emergencyPasswordHash, undefined, 'Hash must never leak');
+  assert.strictEqual(safeViewer.settings.emergencyPasswordSalt, undefined, 'Salt must never leak');
+
+  // Editor role: all emergency details stripped
+  const safeEditor = sanitizeDbForFrontend(rawDb, 'Editor');
+  assert.strictEqual(safeEditor.settings.emergencyPassword, undefined, 'Emergency pass stripped for Editor');
+  assert.strictEqual(safeEditor.settings.hasEmergencyAuth, undefined, 'Emergency flag stripped for Editor');
+
+  // Admin role: emergency details masked but present
+  const safeAdmin = sanitizeDbForFrontend(rawDb, 'Admin');
+  assert.strictEqual(safeAdmin.settings.emergencyUsername, 'emergency');
+  assert.strictEqual(safeAdmin.settings.emergencyPassword, '***');
+  assert.strictEqual(safeAdmin.settings.hasEmergencyAuth, true);
+  assert.strictEqual(safeAdmin.settings.emergencyPasswordHash, undefined, 'Hash must never leak even to Admin');
 });
 
 // -----------------------------------------------------------------------------
@@ -290,6 +304,161 @@ async function runHttpSecurityTests() {
       });
       assert.strictEqual(res.status, 200);
       assert.strictEqual(res.data.ok, true);
+    });
+
+    // 3.7 RBAC: POST /api/storage/devices blocks Viewer
+    await asyncIt('POST /api/storage/devices blocks Viewer with HTTP 403 Forbidden', async () => {
+      const viewerToken = 'test_viewer_dev_' + Date.now();
+      sessions.set(viewerToken, {
+        username: 'viewer2',
+        name: 'Viewer Two',
+        role: 'Viewer',
+        expires: Date.now() + 86400000
+      });
+      const viewerCookie = `nm_session=${viewerToken}`;
+
+      const res = await makeRequest(testPort, 'POST', '/api/storage/devices', [{ ip: '10.99.99.1', name: 'Rogue' }], viewerCookie);
+      assert.strictEqual(res.status, 403, 'Viewer must not be permitted to update devices');
+    });
+
+    // 3.8 RBAC: POST /api/auth/emergency-password blocks Editor & Viewer
+    await asyncIt('POST /api/auth/emergency-password blocks Editor and Viewer with HTTP 403 Forbidden', async () => {
+      const editorToken = 'test_editor_em_' + Date.now();
+      sessions.set(editorToken, {
+        username: 'editor_em',
+        name: 'Editor Emergency Tester',
+        role: 'Editor',
+        expires: Date.now() + 86400000
+      });
+      const editorCookie = `nm_session=${editorToken}`;
+
+      const res = await makeRequest(testPort, 'POST', '/api/auth/emergency-password', {
+        newPassword: 'HackedPassword123!'
+      }, editorCookie);
+      assert.strictEqual(res.status, 403, 'Editor must not be permitted to change emergency password');
+    });
+
+    // 3.9 RBAC: POST /api/storage/all ignores settings/emergencyPassword when sent by Editor
+    await asyncIt('POST /api/storage/all allows Editor to update devices but IGNORES settings/emergencyPassword', async () => {
+      const editorToken = 'test_editor_all_' + Date.now();
+      sessions.set(editorToken, {
+        username: 'editor_all',
+        name: 'Editor Bulk Tester',
+        role: 'Editor',
+        expires: Date.now() + 86400000
+      });
+      const editorCookie = `nm_session=${editorToken}`;
+
+      const payload = {
+        devices: [{ ip: '10.10.10.1', name: 'Core-Editor-Device' }],
+        settings: {
+          emergencyPassword: 'HackedViaStorageAll123!'
+        }
+      };
+
+      const res = await makeRequest(testPort, 'POST', '/api/storage/all', payload, editorCookie);
+      assert.strictEqual(res.status, 200, 'Editor can post storage all');
+
+      // Verify that emergency password was NOT changed to HackedViaStorageAll123!
+      const statusRes = await makeRequest(testPort, 'GET', '/api/setup/status');
+      // Attempt login with the hacked password
+      const loginAttempt = await makeRequest(testPort, 'POST', '/api/auth/login', {
+        username: 'emergency',
+        password: 'HackedViaStorageAll123!',
+        isEmergency: true
+      });
+      assert.strictEqual(loginAttempt.status, 401, 'Emergency password must NOT have been changed by Editor');
+    });
+
+    // 3.10 RBAC: POST /api/storage/all allows Admin to update settings and emergencyPassword
+    await asyncIt('POST /api/storage/all allows Admin to update settings and emergencyPassword', async () => {
+      const adminToken = 'test_admin_all_' + Date.now();
+      sessions.set(adminToken, {
+        username: 'admin_all',
+        name: 'Admin Bulk Tester',
+        role: 'Admin',
+        expires: Date.now() + 86400000
+      });
+      const adminCookie = `nm_session=${adminToken}`;
+
+      const newPass = 'ValidAdminPassUpdate2026!';
+      const payload = {
+        settings: {
+          emergencyPassword: newPass
+        }
+      };
+
+      const res = await makeRequest(testPort, 'POST', '/api/storage/all', payload, adminCookie);
+      assert.strictEqual(res.status, 200);
+
+      // Verify that emergency password WAS updated by Admin
+      const loginAttempt = await makeRequest(testPort, 'POST', '/api/auth/login', {
+        username: 'emergency',
+        password: newPass,
+        isEmergency: true
+      });
+      assert.strictEqual(loginAttempt.status, 200, 'Emergency password must authenticate with new Admin password');
+
+      // Reset emergency password back to default for test suite isolation
+      await makeRequest(testPort, 'POST', '/api/storage/all', {
+        settings: {
+          emergencyPassword: 'emergency@netmon'
+        }
+      }, adminCookie);
+    });
+
+    // 3.11 Shared Dashboard: POST /api/auth/share-session provisions Viewer session with isShared: true
+    await asyncIt('POST /api/auth/share-session provisions valid Viewer session with isShared: true', async () => {
+      const shareRes = await makeRequest(testPort, 'POST', '/api/auth/share-session', { shareKey: 'readonly' });
+      assert.strictEqual(shareRes.status, 200);
+      assert.strictEqual(shareRes.data.success, true);
+      assert.strictEqual(shareRes.data.user.role, 'Viewer');
+      assert.strictEqual(shareRes.data.user.isShared, true);
+
+      // Verify Set-Cookie header
+      const setCookie = shareRes.headers['set-cookie'];
+      assert.ok(setCookie && setCookie.length > 0);
+      assert.ok(setCookie[0].includes('nm_session=share_'));
+    });
+
+    // 3.12 Shared Dashboard: Shared session can read telemetry but is strictly blocked from write operations
+    await asyncIt('Shared session can read telemetry but is strictly blocked from write operations', async () => {
+      const shareRes = await makeRequest(testPort, 'POST', '/api/auth/share-session', { shareKey: 'readonly' });
+      const cookie = shareRes.headers['set-cookie'][0].split(';')[0];
+
+      // Can read telemetry & devices
+      const readRes = await makeRequest(testPort, 'GET', '/api/storage', null, cookie);
+      assert.strictEqual(readRes.status, 200);
+      assert.strictEqual(readRes.data.ok, true);
+      assert.ok(Array.isArray(readRes.data.data.devices));
+
+      // CANNOT add/delete devices (HTTP 403 Forbidden)
+      const writeDev = await makeRequest(testPort, 'POST', '/api/storage/devices', [{ ip: '10.99.99.99', name: 'Hacked' }], cookie);
+      assert.strictEqual(writeDev.status, 403, 'Shared viewer cannot add devices');
+
+      // CANNOT change settings (HTTP 403 Forbidden)
+      const writeSet = await makeRequest(testPort, 'POST', '/api/storage/settings', { settings: { refreshInterval: 5 } }, cookie);
+      assert.strictEqual(writeSet.status, 403, 'Shared viewer cannot change settings');
+
+      // CANNOT acknowledge alerts (HTTP 403 Forbidden)
+      const ackAlert = await makeRequest(testPort, 'POST', '/api/alerts/acknowledge', { id: 'alert-1' }, cookie);
+      assert.strictEqual(ackAlert.status, 403, 'Shared viewer cannot acknowledge alerts');
+
+      // CANNOT change emergency password (HTTP 403 Forbidden)
+      const changePass = await makeRequest(testPort, 'POST', '/api/auth/emergency-password', { newPassword: 'hack' }, cookie);
+      assert.strictEqual(changePass.status, 403, 'Shared viewer cannot change emergency password');
+    });
+
+    // 3.13 Shared Dashboard: GET with ?share=readonly allows read access without cookies, blocks writes
+    await asyncIt('GET with ?share=readonly allows read access without cookies, blocks writes', async () => {
+      const readRes = await makeRequest(testPort, 'GET', '/api/storage?share=readonly');
+      assert.strictEqual(readRes.status, 200);
+      assert.strictEqual(readRes.data.ok, true);
+      assert.ok(Array.isArray(readRes.data.data.devices));
+
+      // POST with ?share=readonly must be rejected
+      const writeRes = await makeRequest(testPort, 'POST', '/api/storage/devices?share=readonly', [{ ip: '10.99.99.99' }]);
+      assert.ok(writeRes.status === 401 || writeRes.status === 403);
     });
 
   } finally {

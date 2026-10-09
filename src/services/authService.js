@@ -22,6 +22,23 @@ export const AuthService = {
     }
   },
 
+  async loginWithShare(shareKey = 'readonly') {
+    try {
+      const res = await fetch('/api/auth/share-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shareKey })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, user: data.user, token: data.token };
+      }
+      return { success: false, error: data.error };
+    } catch (err) {
+      return { success: false, error: 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้' };
+    }
+  },
+
   async fetchSession() {
     try {
       const res = await fetch('/api/auth/me');

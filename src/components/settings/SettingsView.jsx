@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Save, RotateCcw, CheckCircle2, AlertCircle, RefreshCw, KeyRound, Eye, EyeOff, ShieldCheck, Check } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { DEFAULT_SETTINGS } from '../../services/storageService';
 import { AuthService } from '../../services/authService';
 
 export function SettingsView() {
   const { settings, updateSettings, checkConnection, isConnected, isChecking, targetCount } = useSettings();
   const { showToast } = useToast();
+  const { isAdmin, user } = useAuth();
 
   const [formData, setFormData] = useState({
     ...settings,
@@ -34,10 +36,15 @@ export function SettingsView() {
   }, [settings]);
 
   const handleChange = (field, val) => {
+    if (!isAdmin) return;
     setFormData((prev) => ({ ...prev, [field]: val }));
   };
 
   const handleChangeEmergencyPassword = async () => {
+    if (!isAdmin) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ', 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถเปลี่ยนรหัสผ่านฉุกเฉินได้');
+      return;
+    }
     if (!newEmergencyPass) {
       showToast('error', 'กรุณาระบุรหัสผ่าน', 'กรุณากรอกรหัสผ่านฉุกเฉินใหม่');
       return;
@@ -72,6 +79,10 @@ export function SettingsView() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (!isAdmin) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ', 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถแก้ไขการตั้งค่าได้');
+      return;
+    }
 
     // Client-side validation
     const interval = parseInt(formData.refreshInterval, 10);
@@ -125,6 +136,10 @@ export function SettingsView() {
   };
 
   const handleReset = () => {
+    if (!isAdmin) {
+      showToast('error', 'สิทธิ์ไม่เพียงพอ', 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถรีเซ็ตการตั้งค่าได้');
+      return;
+    }
     if (window.confirm('คุณต้องการรีเซ็ตการตั้งค่าทั้งหมดกลับเป็นค่าเริ่มต้นหรือไม่?')) {
       setFormData({ ...DEFAULT_SETTINGS });
       updateSettings({ ...DEFAULT_SETTINGS });
@@ -215,12 +230,34 @@ export function SettingsView() {
 
       {/* Form */}
       <form onSubmit={handleSave} className="panel" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {!isAdmin && (
+          <div
+            style={{
+              padding: '12px 16px',
+              borderRadius: 'var(--radius)',
+              background: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              color: '#93c5fd',
+              fontSize: 13,
+              lineHeight: 1.5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <AlertCircle size={18} color="#60a5fa" style={{ flexShrink: 0 }} />
+            <div>
+              <strong>โหมดอ่านอย่างเดียว (Read-Only Mode):</strong> คุณเข้าสู่ระบบด้วยบทบาท <strong>{user?.role || 'Viewer'}</strong> การตั้งค่าระบบและการจัดการรหัสผ่านฉุกเฉิน (Emergency Break-Glass) สงวนสิทธิ์สำหรับผู้ดูแลระบบ (<strong>Admin</strong>) เท่านั้น
+            </div>
+          </div>
+        )}
         <div className="input-group">
           <label className="input-label">Prometheus Server Direct URL (Port 9090) *</label>
           <input
             type="text"
             value={formData.prometheusUrl || ''}
             onChange={(e) => handleChange('prometheusUrl', e.target.value)}
+            disabled={!isAdmin}
             placeholder="http://localhost:9090"
             className="form-input"
             style={{ fontFamily: 'var(--font-mono)' }}
@@ -232,17 +269,19 @@ export function SettingsView() {
         </div>
 
         <div className="input-group">
-          <label className="input-label">Grafana Analytics Server URL (Port 3000) *</label>
+          <label className="input-label">Grafana Auth & User Management URL (Port 3000) *</label>
           <input
             type="text"
             value={formData.grafanaUrl || ''}
             onChange={(e) => handleChange('grafanaUrl', e.target.value)}
+            disabled={!isAdmin}
             placeholder="http://localhost:3000"
             className="form-input"
             style={{ fontFamily: 'var(--font-mono)' }}
+            required
           />
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            URL ของ Grafana Server ที่เปิดใช้งาน Iframe Embedding (เช่น <code>http://localhost:3000</code>)
+            URL ของ Grafana Server ที่ใช้สำหรับการตรวจสอบสิทธิ์เข้าสู่ระบบและจัดการผู้ใช้ (User Management) เช่น <code>http://localhost:3000</code> หรือ <code>http://&lt;GRAFANA_IP&gt;:3000</code> (หาก Grafana เปลี่ยน IP สามารถล็อกอินด้วยบัญชีฉุกเฉินเข้ามาอัปเดตที่นี่ได้)
           </div>
         </div>
 
@@ -252,6 +291,7 @@ export function SettingsView() {
             type="text"
             value={formData.orgName}
             onChange={(e) => handleChange('orgName', e.target.value)}
+            disabled={!isAdmin}
             className="form-input"
           />
         </div>
@@ -266,6 +306,7 @@ export function SettingsView() {
               type="password"
               value={formData.defaultCommunity || ''}
               onChange={(e) => handleChange('defaultCommunity', e.target.value)}
+              disabled={!isAdmin}
               placeholder="(คงค่าเดิมไว้บน Backend)"
               className="form-input"
               style={{ fontFamily: 'var(--font-mono)' }}
@@ -280,6 +321,7 @@ export function SettingsView() {
             <select
               value={formData.defaultModule || 'if_mib'}
               onChange={(e) => handleChange('defaultModule', e.target.value)}
+              disabled={!isAdmin}
               className="form-select"
             >
               <option value="if_mib">if_mib (Standard Interfaces)</option>
@@ -302,6 +344,7 @@ export function SettingsView() {
               type="text"
               value={formData.wanInterface || ''}
               onChange={(e) => handleChange('wanInterface', e.target.value)}
+              disabled={!isAdmin}
               placeholder="เช่น GigabitEthernet0/0/0 หรือ TenGigabitEthernet1/0/1"
               className="form-input"
             />
@@ -318,6 +361,7 @@ export function SettingsView() {
               max="120"
               value={formData.refreshInterval || 10}
               onChange={(e) => handleChange('refreshInterval', parseInt(e.target.value, 10) || 10)}
+              disabled={!isAdmin}
               className="form-input"
             />
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -332,6 +376,7 @@ export function SettingsView() {
             type="text"
             value={formData.defaultDiscoveryCidr || ''}
             onChange={(e) => handleChange('defaultDiscoveryCidr', e.target.value)}
+            disabled={!isAdmin}
             placeholder="192.168.1.0/24"
             className="form-input"
             style={{ fontFamily: 'var(--font-mono)' }}
@@ -341,128 +386,130 @@ export function SettingsView() {
           </div>
         </div>
 
-        {/* Emergency Break-Glass Authentication Section */}
-        <div style={{
-          padding: '16px 18px',
-          borderRadius: 'var(--radius)',
-          background: 'rgba(245, 158, 11, 0.08)',
-          border: '1px solid rgba(245, 158, 11, 0.25)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 14,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <KeyRound size={18} color="#f59e0b" />
-              <span style={{ fontWeight: 800, fontSize: 14, color: '#fbbf24' }}>
-                ระบบเข้าสู่ระบบฉุกเฉิน (Emergency Break-Glass Authentication)
+        {/* Emergency Break-Glass Authentication Section - Strictly Admin Only */}
+        {isAdmin && (
+          <div style={{
+            padding: '16px 18px',
+            borderRadius: 'var(--radius)',
+            background: 'rgba(245, 158, 11, 0.08)',
+            border: '1px solid rgba(245, 158, 11, 0.25)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <KeyRound size={18} color="#f59e0b" />
+                <span style={{ fontWeight: 800, fontSize: 14, color: '#fbbf24' }}>
+                  ระบบเข้าสู่ระบบฉุกเฉิน (Emergency Break-Glass Authentication)
+                </span>
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <ShieldCheck size={14} /> สิทธิ์ Admin ในเครื่อง (Local Fallback)
               </span>
             </div>
-            <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <ShieldCheck size={14} /> สิทธิ์ Admin ในเครื่อง (Local Fallback)
-            </span>
-          </div>
 
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            ใช้สำหรับล็อกอินเข้าจัดการระบบเมื่อเซิร์ฟเวอร์ Grafana ไม่สามารถเข้าถึงได้ (Down / เปลี่ยน IP / Network ขาด)
-            โดยระบบจะตรวจสอบสิทธิ์กับ Backend โดยตรงและมอบสิทธิ์ <strong>Admin</strong> เพื่อกู้คืนระบบทันที
-          </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              ใช้สำหรับล็อกอินเข้าจัดการระบบกรณีฉุกเฉินหรือกู้คืนระบบ (Break-Glass Local Admin)
+              โดยระบบจะตรวจสอบสิทธิ์กับ Backend โดยตรงและมอบสิทธิ์ <strong>Admin</strong> เพื่อกู้คืนระบบทันที
+            </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-            <div className="input-group">
-              <label className="input-label">ชื่อผู้ใช้ฉุกเฉิน (Emergency Username)</label>
-              <input
-                type="text"
-                value={emergencyUser}
-                onChange={(e) => setEmergencyUser(e.target.value)}
-                placeholder="emergency"
-                className="form-input"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              />
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                ชื่อบัญชีสำหรับ Break-Glass Login (ค่าเริ่มต้น: <code>emergency</code>)
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+              <div className="input-group">
+                <label className="input-label">ชื่อผู้ใช้ฉุกเฉิน (Emergency Username)</label>
+                <input
+                  type="text"
+                  value={emergencyUser}
+                  onChange={(e) => setEmergencyUser(e.target.value)}
+                  placeholder="emergency"
+                  className="form-input"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  ชื่อบัญชีสำหรับ Break-Glass Login (ค่าเริ่มต้น: <code>emergency</code>)
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>รหัสผ่านฉุกเฉินใหม่ (New Password)</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowEmergencyPass(!showEmergencyPass)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      fontSize: 11,
+                      padding: 0,
+                    }}
+                    title={showEmergencyPass ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                  >
+                    {showEmergencyPass ? <EyeOff size={13} /> : <Eye size={13} />}
+                    <span>{showEmergencyPass ? 'ซ่อน' : 'แสดง'}</span>
+                  </button>
+                </label>
+                <input
+                  type={showEmergencyPass ? 'text' : 'password'}
+                  value={newEmergencyPass}
+                  onChange={(e) => setNewEmergencyPass(e.target.value)}
+                  placeholder="(เว้นว่างไว้หากไม่ต้องการเปลี่ยน)"
+                  className="form-input"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                  autoComplete="new-password"
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  ความยาวอย่างน้อย 6 ตัวอักษร
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">ยืนยันรหัสผ่านฉุกเฉิน (Confirm Password)</label>
+                <input
+                  type={showEmergencyPass ? 'text' : 'password'}
+                  value={confirmEmergencyPass}
+                  onChange={(e) => setConfirmEmergencyPass(e.target.value)}
+                  placeholder="(ยืนยันรหัสผ่านใหม่)"
+                  className="form-input"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                  autoComplete="new-password"
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  พิมพ์รหัสผ่านใหม่อีกครั้งให้ตรงกัน
+                </div>
               </div>
             </div>
 
-            <div className="input-group">
-              <label className="input-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>รหัสผ่านฉุกเฉินใหม่ (New Password)</span>
-                <button
-                  type="button"
-                  onClick={() => setShowEmergencyPass(!showEmergencyPass)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    fontSize: 11,
-                    padding: 0,
-                  }}
-                  title={showEmergencyPass ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
-                >
-                  {showEmergencyPass ? <EyeOff size={13} /> : <Eye size={13} />}
-                  <span>{showEmergencyPass ? 'ซ่อน' : 'แสดง'}</span>
-                </button>
-              </label>
-              <input
-                type={showEmergencyPass ? 'text' : 'password'}
-                value={newEmergencyPass}
-                onChange={(e) => setNewEmergencyPass(e.target.value)}
-                placeholder="(เว้นว่างไว้หากไม่ต้องการเปลี่ยน)"
-                className="form-input"
-                style={{ fontFamily: 'var(--font-mono)' }}
-                autoComplete="new-password"
-              />
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                ความยาวอย่างน้อย 6 ตัวอักษร
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginTop: 4 }}>
+              <div>
+                {passSuccessMessage && (
+                  <span style={{ fontSize: 12, color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Check size={14} /> {passSuccessMessage}
+                  </span>
+                )}
               </div>
-            </div>
-
-            <div className="input-group">
-              <label className="input-label">ยืนยันรหัสผ่านฉุกเฉิน (Confirm Password)</label>
-              <input
-                type={showEmergencyPass ? 'text' : 'password'}
-                value={confirmEmergencyPass}
-                onChange={(e) => setConfirmEmergencyPass(e.target.value)}
-                placeholder="(ยืนยันรหัสผ่านใหม่)"
-                className="form-input"
-                style={{ fontFamily: 'var(--font-mono)' }}
-                autoComplete="new-password"
-              />
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                พิมพ์รหัสผ่านใหม่อีกครั้งให้ตรงกัน
-              </div>
+              <button
+                type="button"
+                onClick={handleChangeEmergencyPassword}
+                disabled={isChangingPass || !newEmergencyPass}
+                className="btn btn-secondary"
+                style={{
+                  fontSize: 12,
+                  padding: '6px 14px',
+                  borderColor: 'rgba(245, 158, 11, 0.4)',
+                  color: newEmergencyPass ? '#fbbf24' : 'var(--text-muted)',
+                }}
+              >
+                <KeyRound size={13} className={isChangingPass ? 'animate-spin' : ''} />
+                <span>{isChangingPass ? 'กำลังบันทึกรหัสผ่าน...' : 'บันทึกรหัสผ่านฉุกเฉินเฉพาะส่วน'}</span>
+              </button>
             </div>
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginTop: 4 }}>
-            <div>
-              {passSuccessMessage && (
-                <span style={{ fontSize: 12, color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Check size={14} /> {passSuccessMessage}
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={handleChangeEmergencyPassword}
-              disabled={isChangingPass || !newEmergencyPass}
-              className="btn btn-secondary"
-              style={{
-                fontSize: 12,
-                padding: '6px 14px',
-                borderColor: 'rgba(245, 158, 11, 0.4)',
-                color: newEmergencyPass ? '#fbbf24' : 'var(--text-muted)',
-              }}
-            >
-              <KeyRound size={13} className={isChangingPass ? 'animate-spin' : ''} />
-              <span>{isChangingPass ? 'กำลังบันทึกรหัสผ่าน...' : 'บันทึกรหัสผ่านฉุกเฉินเฉพาะส่วน'}</span>
-            </button>
-          </div>
-        </div>
+        )}
 
         <div className="input-group">
           <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -472,6 +519,7 @@ export function SettingsView() {
             type="password"
             value={formData.lineChannelToken || ''}
             onChange={(e) => handleChange('lineChannelToken', e.target.value)}
+            disabled={!isAdmin}
             className="form-input"
             placeholder="ใส่ Channel Access Token ที่ได้จาก LINE Developers..."
           />
@@ -485,6 +533,7 @@ export function SettingsView() {
             type="text"
             value={formData.lineTargetId || ''}
             onChange={(e) => handleChange('lineTargetId', e.target.value)}
+            disabled={!isAdmin}
             className="form-input"
             placeholder="ใส่ User ID หรือ Group ID ที่ต้องการให้บอทส่งข้อความไปหา..."
           />
@@ -494,19 +543,21 @@ export function SettingsView() {
           <button
             type="button"
             onClick={handleReset}
+            disabled={!isAdmin}
             className="btn btn-secondary"
-            style={{ fontSize: 12, padding: '8px 16px' }}
+            style={{ fontSize: 12, padding: '8px 16px', opacity: !isAdmin ? 0.5 : 1, cursor: !isAdmin ? 'not-allowed' : 'pointer' }}
           >
             <RotateCcw size={14} />
             <span>คืนค่าเริ่มต้น</span>
           </button>
           <button
             type="submit"
+            disabled={!isAdmin}
             className="btn btn-primary"
-            style={{ fontSize: 12, padding: '8px 22px' }}
+            style={{ fontSize: 12, padding: '8px 22px', opacity: !isAdmin ? 0.5 : 1, cursor: !isAdmin ? 'not-allowed' : 'pointer' }}
           >
             <Save size={14} />
-            <span>บันทึกการตั้งค่า (Save Settings)</span>
+            <span>{isAdmin ? 'บันทึกการตั้งค่า (Save Settings)' : 'อ่านอย่างเดียว (Admin เท่านั้น)'}</span>
           </button>
         </div>
       </form>

@@ -26,15 +26,49 @@ export function AuthProvider({ children }) {
   }, [showToast]);
 
   useEffect(() => {
-    AuthService.fetchSession().then(u => {
-      setUser(u);
+    const initSession = async () => {
+      // 1. Try to fetch existing cookie session
+      const existingUser = await AuthService.fetchSession();
+      if (existingUser) {
+        setUser(existingUser);
+        setIsInitializing(false);
+        return;
+      }
+
+      // 2. Check for public read-only share link: ?share=readonly or ?share=<key>
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const shareKey = searchParams.get('share') || (searchParams.get('view') === 'readonly' ? 'readonly' : null);
+        if (shareKey) {
+          const shareRes = await AuthService.loginWithShare(shareKey);
+          if (shareRes.success && shareRes.user) {
+            setUser(shareRes.user);
+            setIsInitializing(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('[AuthContext] Share link check failed:', err);
+      }
+
+      setUser(null);
       setIsInitializing(false);
-    });
+    };
+
+    initSession();
   }, []);
 
   // Inactivity tracking & Keep-Alive listener
   useEffect(() => {
     if (!isAuthenticated) return;
+
+    // Shared read-only wallboards / kiosk screens stay active continuously without inactivity timeout
+    if (user?.isShared) {
+      const keepAlive = setInterval(() => {
+        AuthService.touchSession();
+      }, 60000);
+      return () => clearInterval(keepAlive);
+    }
 
     let lastTouch = Date.now();
     const handleActivity = () => {
@@ -60,7 +94,7 @@ export function AuthProvider({ children }) {
       events.forEach((evt) => window.removeEventListener(evt, handleActivity));
       clearInterval(interval);
     };
-  }, [isAuthenticated, logout]);
+  }, [isAuthenticated, user?.isShared, logout]);
 
   const login = useCallback(async (username, password, isEmergency = false) => {
     setIsLoading(true);
