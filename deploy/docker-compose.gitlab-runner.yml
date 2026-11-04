@@ -1,0 +1,24 @@
+# =============================================================================
+# GitLab Runner Docker Compose Configuration
+# ใช้งานบนเครื่อง GitLab Server ที่รัน GitLab ผ่าน Docker
+# =============================================================================
+
+version: '3.8'
+
+services:
+  gitlab-runner:
+    image: gitlab/gitlab-runner:latest
+    container_name: gitlab-runner
+    restart: always
+    volumes:
+      # เชื่อมต่อ Docker daemon ของโฮสต์เพื่อให้ Runner สามารถ spawn build container ได้
+      - /var/run/docker.sock:/var/run/docker.sock
+      # บันทึกไฟล์คอนฟิกและการลงทะเบียน Runner ไว้บนโฮสต์ (ไม่หายเมื่อรีสตาร์ท)
+      - /srv/gitlab-runner/config:/etc/gitlab-runner
+    environment:
+      - TZ=Asia/Bangkok
+    # หาก GitLab container รันอยู่บน host เดียวกัน สามารถใช้ network_mode: host หรือเชื่อมโยง network ได้
+    network_mode: bridge
+    extra_hosts:
+      # ระบุ Domain หรือ Host mapping หากจำเป็น (เช่น gitlab.local หรือ IP ของเครื่อง)
+      - "gitlab.local:host-gateway"

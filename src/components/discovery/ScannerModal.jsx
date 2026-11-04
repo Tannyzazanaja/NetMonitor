@@ -214,7 +214,7 @@ export function ScannerModal({ isOpen, onClose }) {
             
             {isScanning && (
               <div style={{ fontSize: 12, color: 'var(--primary)', textAlign: 'center' }}>
-                ระบบกำลัง Ping และ Query SNMP โปรดรอสักครู่...
+                ⚡ กำลังสแกนความเร็วสูง (Parallel SNMP & TCP/Ping)...
               </div>
             )}
           </form>
@@ -255,7 +255,7 @@ export function ScannerModal({ isOpen, onClose }) {
                 <Loader2 size={48} className="spin" style={{ opacity: 0.5, margin: '0 auto 16px' }} />
                 <p>กำลังค้นหาอุปกรณ์ในเครือข่าย...</p>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-                  ขั้นตอนนี้อาจใช้เวลา 5-15 วินาที ขึ้นอยู่กับขนาด Subnet
+                  สแกนด้วย Fast Multi-Vector Engine (ใช้เวลาเพียง ~2-5 วินาที)
                 </div>
               </div>
             ) : results.length === 0 ? (

@@ -1,0 +1,60 @@
+# =============================================================================
+# GitLab Server & Runner - All-in-One Docker Compose Stack
+# ใช้งานสำหรับติดตั้ง GitLab CE และ GitLab Runner ร่วมกันบนเครื่อง <GITLAB_SERVER_IP>
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # 1. GitLab Community Edition (GitLab CE)
+  # ---------------------------------------------------------------------------
+  web:
+    image: gitlab/gitlab-ce:latest
+    container_name: gitlab-ce
+    restart: always
+    hostname: 'gitlab.local'
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        # ระบุ IP หรือ Domain ของเครื่อง GitLab
+        external_url 'http://${GITLAB_SERVER_IP:-192.168.109.146}'
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222
+        # ปรับแต่งการใช้ Memory สำหรับ Server ทั่วไป
+        puma['worker_processes'] = 2
+        sidekiq['max_concurrency'] = 10
+    ports:
+      - '80:80'
+      - '443:443'
+      - '2222:22'
+    volumes:
+      - '/srv/gitlab/config:/etc/gitlab'
+      - '/srv/gitlab/logs:/var/log/gitlab'
+      - '/srv/gitlab/data:/var/opt/gitlab'
+    networks:
+      - gitlab-net
+
+  # ---------------------------------------------------------------------------
+  # 2. GitLab CI/CD Runner (เชื่อมโยง Docker Engine สำหรับรัน Pipeline)
+  # ---------------------------------------------------------------------------
+  runner:
+    image: gitlab/gitlab-runner:latest
+    container_name: gitlab-runner
+    restart: always
+    depends_on:
+      - web
+    volumes:
+      # เชื่อมต่อ Docker daemon ของโฮสต์เพื่อให้ Runner สามารถสร้าง Build Container ได้
+      - /var/run/docker.sock:/var/run/docker.sock
+      # บันทึกไฟล์คอนฟิกและการลงทะเบียน Runner ไว้บนโฮสต์
+      - /srv/gitlab-runner/config:/etc/gitlab-runner
+    environment:
+      - TZ=Asia/Bangkok
+    networks:
+      - gitlab-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  gitlab-net:
+    name: gitlab-net
+    driver: bridge

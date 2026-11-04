@@ -21,6 +21,7 @@ export function SettingsView() {
   const [showEmergencyPass, setShowEmergencyPass] = useState(false);
   const [isChangingPass, setIsChangingPass] = useState(false);
   const [passSuccessMessage, setPassSuccessMessage] = useState('');
+  const [testResult, setTestResult] = useState(null);
 
   useEffect(() => {
     if (settings) {
@@ -213,6 +214,11 @@ export function SettingsView() {
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
               Target URL: {activeUrl} · Targets Reporting: {targetCount}
             </div>
+            {testResult && (
+              <div style={{ fontSize: 11, color: testResult.ok ? 'var(--green)' : 'var(--red)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
+                {testResult.message}
+              </div>
+            )}
           </div>
         </div>
 
