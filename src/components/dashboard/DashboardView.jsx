@@ -1024,19 +1024,45 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
                   {selectedMatrixDevice.fans?.label || 'All Fans OK'}
                 </div>
               </div>
+            </div>
 
-              {/* PoE Utilization (if available) */}
-              {selectedMatrixDevice.poe && (
-                <div style={{ background: 'rgba(15, 23, 42, 0.4)', padding: '8px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--text-muted)' }}>
-                    <Zap size={12} color="var(--green)" /> PoE Watts
+            {/* PoE Allocated Power & PoE Actual Consumption Side-by-Side (if available) */}
+            {selectedMatrixDevice.poe && (() => {
+              const budgetW = selectedMatrixDevice.poe.budgetWatts ?? 0;
+              const allocW = selectedMatrixDevice.poe.allocatedWatts ?? selectedMatrixDevice.poe.usedWatts ?? 0;
+              const actualW = selectedMatrixDevice.poe.actualWatts ?? selectedMatrixDevice.poe.usedWatts ?? 0;
+              const allocPct = selectedMatrixDevice.poe.allocatedPercent ?? (budgetW > 0 ? Math.min(100, Math.round((allocW / budgetW) * 100)) : 0);
+              const actualPct = selectedMatrixDevice.poe.actualPercent ?? selectedMatrixDevice.poe.percent ?? (budgetW > 0 ? Math.min(100, Math.round((actualW / budgetW) * 100)) : 0);
+
+              return (
+                <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16, 185, 129, 0.28)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--green)', fontWeight: 700 }}>
+                      <Zap size={13} color="var(--green)" /> PoE Power Telemetry (Total Budget: {budgetW}W)
+                    </span>
+                    {selectedMatrixDevice.poe.activePorts > 0 && (
+                      <span style={{ fontSize: 10, color: 'var(--cyan)', fontFamily: 'var(--font-mono)' }}>
+                        {selectedMatrixDevice.poe.activePorts} Active Ports
+                      </span>
+                    )}
                   </div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', marginTop: 2 }} title={`${selectedMatrixDevice.poe.usedWatts}W / ${selectedMatrixDevice.poe.budgetWatts}W`}>
-                    {selectedMatrixDevice.poe.usedWatts}W <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>({selectedMatrixDevice.poe.percent}%)</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div style={{ background: 'rgba(6, 9, 19, 0.55)', padding: '8px 10px', borderRadius: 4, border: '1px solid rgba(245, 158, 11, 0.28)' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>PoE Allocated Power</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--amber)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
+                        {allocW}W <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>({allocPct}%)</span>
+                      </div>
+                    </div>
+                    <div style={{ background: 'rgba(6, 9, 19, 0.55)', padding: '8px 10px', borderRadius: 4, border: '1px solid rgba(16, 185, 129, 0.28)' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>PoE Actual Consumption</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--green)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
+                        {actualW}W <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>({actualPct}%)</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Hardware & Location Info */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, background: 'rgba(15, 23, 42, 0.5)', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>

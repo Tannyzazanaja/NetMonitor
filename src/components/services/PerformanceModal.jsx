@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Modal } from '../common/Modal';
 import { Line } from 'react-chartjs-2';
-import { Loader2, Activity, Database, AlertCircle, Network, Cpu } from 'lucide-react';
+import { Loader2, Activity, Database, AlertCircle, Network, Cpu, Zap } from 'lucide-react';
 import { PrometheusClient } from '../../services/prometheusService';
 import { InterfacesPanel } from './InterfacesPanel';
 import {
@@ -387,6 +387,44 @@ export function PerformanceModal({ isOpen, onClose, device, defaultTab = 'system
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {device?.poe && (() => {
+              const budgetW = device.poe.budgetWatts ?? 0;
+              const allocW = device.poe.allocatedWatts ?? device.poe.usedWatts ?? 0;
+              const actualW = device.poe.actualWatts ?? device.poe.usedWatts ?? 0;
+              const allocPct = device.poe.allocatedPercent ?? (budgetW > 0 ? Math.min(100, Math.round((allocW / budgetW) * 100)) : 0);
+              const actualPct = device.poe.actualPercent ?? device.poe.percent ?? (budgetW > 0 ? Math.min(100, Math.round((actualW / budgetW) * 100)) : 0);
+
+              return (
+                <div style={{ background: 'rgba(6,9,19,0.5)', padding: 16, borderRadius: 'var(--radius)', border: '1px solid rgba(16, 185, 129, 0.3)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 600 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Zap size={15} color="var(--green)" />
+                      <span>PoE Power Telemetry (Total Budget: {budgetW}W)</span>
+                    </div>
+                    {device.poe.activePorts > 0 && (
+                      <span style={{ fontSize: 12, color: 'var(--cyan)', fontFamily: 'var(--font-mono)' }}>
+                        {device.poe.activePorts} Active PoE Ports
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>PoE Allocated Power</div>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--amber)', fontFamily: 'var(--font-mono)', marginTop: 4 }}>
+                        {allocW}W <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>({allocPct}% of {budgetW}W)</span>
+                      </div>
+                    </div>
+                    <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>PoE Actual Consumption</div>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--green)', fontFamily: 'var(--font-mono)', marginTop: 4 }}>
+                        {actualW}W <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>({actualPct}% of {budgetW}W)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div style={{ background: 'rgba(6,9,19,0.5)', padding: 16, borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, fontWeight: 600 }}>
                 <Activity size={14} color="#00d4ff" />

@@ -358,6 +358,44 @@ export function ServicesView() {
                     <div style={{ width: `${mem}%`, height: '100%', background: getBarColor(mem), transition: 'width 0.5s ease-out, background 0.3s ease' }} />
                   </div>
                 </div>
+
+                {/* PoE Allocated Power & PoE Actual Consumption Side-by-Side */}
+                {dev.poe && (() => {
+                  const budgetW = dev.poe.budgetWatts ?? 0;
+                  const allocW = dev.poe.allocatedWatts ?? dev.poe.usedWatts ?? 0;
+                  const actualW = dev.poe.actualWatts ?? dev.poe.usedWatts ?? 0;
+                  const allocPct = dev.poe.allocatedPercent ?? (budgetW > 0 ? Math.min(100, Math.round((allocW / budgetW) * 100)) : 0);
+                  const actualPct = dev.poe.actualPercent ?? dev.poe.percent ?? (budgetW > 0 ? Math.min(100, Math.round((actualW / budgetW) * 100)) : 0);
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px', borderRadius: 'var(--radius-sm)', background: 'rgba(15, 23, 42, 0.55)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--green)', fontWeight: 700 }}>
+                          <Zap size={12} color="var(--green)" /> PoE Power (Budget: {budgetW}W)
+                        </span>
+                        {dev.poe.activePorts > 0 && (
+                          <span style={{ fontSize: 10, color: 'var(--cyan)', fontFamily: 'var(--font-mono)' }}>
+                            {dev.poe.activePorts} Ports Active
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <div style={{ background: 'rgba(6, 9, 19, 0.5)', padding: '6px 8px', borderRadius: 4, border: '1px solid rgba(245, 158, 11, 0.25)' }}>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>PoE Allocated Power</div>
+                          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--amber)', marginTop: 2 }}>
+                            {allocW}W <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>({allocPct}%)</span>
+                          </div>
+                        </div>
+                        <div style={{ background: 'rgba(6, 9, 19, 0.5)', padding: '6px 8px', borderRadius: 4, border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>PoE Actual Consumption</div>
+                          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--green)', marginTop: 2 }}>
+                            {actualW}W <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>({actualPct}%)</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Environmental & Hardware Tags */}
@@ -378,8 +416,8 @@ export function ServicesView() {
                   </span>
                 )}
                 {dev.poe && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 8px', borderRadius: 4, background: 'rgba(15, 23, 42, 0.6)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }} title={`PoE: ${dev.poe.usedWatts}W / ${dev.poe.budgetWatts}W`}>
-                    <Zap size={11} color="var(--green)" /> PoE {dev.poe.usedWatts}W ({dev.poe.percent}%)
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '2px 8px', borderRadius: 4, background: 'rgba(15, 23, 42, 0.6)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }} title={`PoE Allocated: ${dev.poe.allocatedWatts ?? dev.poe.usedWatts}W | Actual: ${dev.poe.actualWatts ?? dev.poe.usedWatts}W / Budget: ${dev.poe.budgetWatts}W`}>
+                    <Zap size={11} color="var(--green)" /> Alloc: {dev.poe.allocatedWatts ?? dev.poe.usedWatts}W • Actual: {dev.poe.actualWatts ?? dev.poe.usedWatts}W
                   </span>
                 )}
                 {dev.serial && (
