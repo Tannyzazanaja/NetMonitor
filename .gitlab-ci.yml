@@ -99,15 +99,21 @@ deploy:production:
   dependencies:
   - build:frontend
   before_script:
-  # ติดตั้งเครื่องมือ SSH, Rsync, และ Curl บน Runner
   - apk add --no-cache openssh-client rsync curl bash
-  # เริ่มต้น SSH Agent และโหลด Private Key จาก GitLab CI/CD Variables
-  - eval $(ssh-agent -s)
-  - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
+  - eval "$(ssh-agent -s)"
   - mkdir -p ~/.ssh
   - chmod 700 ~/.ssh
-  # ป้องกันคำถามยืนยัน SSH Key fingerprint สำหรับ Production Host
-  - ssh-keyscan -H "$PROD_SERVER_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+  # Validate SSH Private Key
+  - test -s "$SSH_PRIVATE_KEY"
+  - ssh-keygen -y -f "$SSH_PRIVATE_KEY" > /dev/null
+
+  # Load SSH Private Key
+  - chmod 400 "$SSH_PRIVATE_KEY"
+  - ssh-add "$SSH_PRIVATE_KEY"
+
+  # Register Production SSH Host
+  - ssh-keyscan -H "$PROD_SERVER_IP" >> ~/.ssh/known_hosts 2>/dev/null
   - chmod 644 ~/.ssh/known_hosts
   script:
   - echo "=========================================================="
