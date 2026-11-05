@@ -531,6 +531,14 @@ const queryRateLimitMap = new Map();
 const QUERY_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const MAX_QUERIES_PER_MINUTE = 60;
 
+// Short-TTL In-Memory Cache & Request Coalescing for Prometheus Proxy GET Queries
+// Prevents duplicate upstream Prometheus load and rate-limit exhaustion when multiple
+// NOC wallboards or dashboard panels query identical metrics within a 3-second window.
+const promProxyCache = new Map();
+const promProxyInFlight = new Map();
+const PROM_PROXY_CACHE_TTL_MS = 3000;
+const PROM_PROXY_CACHE_MAX_ENTRIES = 200;
+
 function checkQueryRateLimit(identifier) {
   const now = Date.now();
   const record = queryRateLimitMap.get(identifier);
@@ -2831,17 +2839,6 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    // Rate limiting (Section 10)
-    const clientIp = getClientIp(req);
-    const rateCheck = checkQueryRateLimit(clientIp);
-    if (!rateCheck.allowed) {
-      res.setHeader('Retry-After', rateCheck.retryAfter);
-      return sendJson(res, 429, {
-        status: 'error',
-        error: 'Too Many Requests: Prometheus query rate limit exceeded (max 60 queries/min)'
-      });
-    }
-
     // Check query size limit (prevent excessive URI or PromQL payload)
     if (url.search && url.search.length > 4096) {
       return sendJson(res, 400, {
@@ -2862,6 +2859,46 @@ const server = http.createServer(async (req, res) => {
     const db = readDb();
     const promBase = (db.settings?.prometheusUrl || 'http://127.0.0.1:9090').replace(/\/+$/, '');
     const targetUrl = `${promBase}${subPath}${url.search}`;
+
+    // Short-TTL Cache & In-Flight Coalescing for GET requests (serves identical queries within 3s)
+    if (req.method === 'GET') {
+      const cached = promProxyCache.get(targetUrl);
+      if (cached && (Date.now() - cached.timestamp) < PROM_PROXY_CACHE_TTL_MS) {
+        res.writeHead(cached.status, {
+          'Content-Type': cached.contentType,
+          'Access-Control-Allow-Origin': '*',
+          'X-Proxy-Cache': 'HIT',
+        });
+        return res.end(cached.bodyText);
+      }
+
+      const inFlight = promProxyInFlight.get(targetUrl);
+      if (inFlight) {
+        try {
+          const shared = await inFlight;
+          res.writeHead(shared.status, {
+            'Content-Type': shared.contentType,
+            'Access-Control-Allow-Origin': '*',
+            'X-Proxy-Cache': 'COALESCED',
+          });
+          return res.end(shared.bodyText);
+        } catch {
+          // Fall through to normal fetch if in-flight failed
+        }
+      }
+    }
+
+    // Rate limiting (Section 10 - evaluated on cache miss / upstream query)
+    const clientIp = getClientIp(req);
+    const rateCheck = checkQueryRateLimit(clientIp);
+    if (!rateCheck.allowed) {
+      res.setHeader('Retry-After', rateCheck.retryAfter);
+      return sendJson(res, 429, {
+        status: 'error',
+        error: 'Too Many Requests: Prometheus query rate limit exceeded (max 60 queries/min)'
+      });
+    }
+
     try {
       const fetchOpts = {
         method: req.method,
@@ -2873,13 +2910,50 @@ const server = http.createServer(async (req, res) => {
         fetchOpts.body = typeof body === 'string' ? body : JSON.stringify(body);
         fetchOpts.headers['Content-Type'] = req.headers['content-type'] || 'application/json';
       }
-      const pRes = await fetch(targetUrl, fetchOpts);
-      const bodyText = await pRes.text();
-      res.writeHead(pRes.status, {
-        'Content-Type': pRes.headers.get('content-type') || 'application/json',
+
+      const executeUpstream = async () => {
+        const pRes = await fetch(targetUrl, fetchOpts);
+        const bodyText = await pRes.text();
+        const contentType = pRes.headers.get('content-type') || 'application/json';
+        return { status: pRes.status, contentType, bodyText };
+      };
+
+      let upstreamPromise;
+      if (req.method === 'GET') {
+        upstreamPromise = executeUpstream();
+        promProxyInFlight.set(targetUrl, upstreamPromise);
+      } else {
+        upstreamPromise = executeUpstream();
+      }
+
+      let result;
+      try {
+        result = await upstreamPromise;
+      } finally {
+        if (req.method === 'GET') {
+          promProxyInFlight.delete(targetUrl);
+        }
+      }
+
+      if (req.method === 'GET' && result.status === 200) {
+        if (promProxyCache.size >= PROM_PROXY_CACHE_MAX_ENTRIES) {
+          const oldestKey = promProxyCache.keys().next().value;
+          if (oldestKey !== undefined) promProxyCache.delete(oldestKey);
+        }
+        promProxyCache.set(targetUrl, {
+          status: result.status,
+          contentType: result.contentType,
+          bodyText: result.bodyText,
+          timestamp: Date.now(),
+        });
+      }
+
+      res.writeHead(result.status, {
+        'Content-Type': result.contentType,
         'Access-Control-Allow-Origin': '*',
+        'X-Proxy-Cache': 'MISS',
       });
-      return res.end(bodyText);
+      return res.end(result.bodyText);
     } catch (err) {
       return sendJson(res, 502, {
         status: 'error',

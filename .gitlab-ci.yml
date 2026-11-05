@@ -6,208 +6,270 @@
 # =============================================================================
 
 stages:
-- build
-- test
-- deploy
-- verify
+  - build
+  - test
+  - deploy
+  - verify
 
 variables:
-  # IP และพารามิเตอร์ของ Production Server (สามารถ Override ได้จากหน้าเว็บ GitLab CI/CD Variables)
+  # พารามิเตอร์ของ Production Server (สามารถตั้งค่าทับได้ใน GitLab Settings > CI/CD > Variables)
   PROD_SERVER_IP: "192.168.109.147"
   PROD_SSH_USER: "root"
+  PROD_SSH_PORT: "22"
   PROD_APP_DIR: "/var/www/netmonitor-react"
   PROD_BACKUP_DIR: "/var/backups/netmonitor"
+  # DEPLOY_MODE: "auto" (ตรวจสอบอัตโนมัติ), "native" (PM2/Systemd), หรือ "docker" (Docker Compose)
+  DEPLOY_MODE: "auto"
 
   # การตั้งค่า Node.js & NPM Cache
-  NODE_VERSION: "20"
   NPM_CONFIG_CACHE: "$CI_PROJECT_DIR/.npm"
 
 # Caching dependencies ข้าม Stage เพื่อความเร็วในการรัน Pipeline
 cache:
   key:
     files:
-    - package-lock.json
-    - server/package-lock.json
+      - package-lock.json
+      - server/package-lock.json
   paths:
-  - .npm/
-  - node_modules/
-  - server/node_modules/
+    - .npm/
 
 # -----------------------------------------------------------------------------
-# 1. BUILD STAGE: คอมไพล์ Frontend (React + Vite) เป็น Production Bundle
+# 1. BUILD STAGE: คอมไพล์ Frontend (React 19 + Vite 8) เป็น Production Bundle
 # -----------------------------------------------------------------------------
 build:frontend:
   stage: build
-  image: node:20-bookworm-slim
+  image: node:22-bookworm-slim
 
   before_script:
-  - node -v
-  - npm -v
-  - npm ci --prefer-offline --no-audit
+    - node -v
+    - npm -v
+    - npm ci --prefer-offline --no-audit || npm install --no-audit
 
   script:
-  - echo "=== Building Vite Production Bundle ==="
-  - npm run build
-  - test -f dist/index.html
-  - test -d dist/assets
-  - ls -lh dist/
+    - echo "=== Building Vite Production Bundle ==="
+    - npm run build
+    - test -f dist/index.html
+    - test -d dist/assets
+    - ls -lh dist/
 
   artifacts:
     name: "netmonitor-frontend-dist-$CI_COMMIT_SHORT_SHA"
     expire_in: 7 days
     paths:
-    - dist/
+      - dist/
 
   rules:
-  - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  - if: '$CI_COMMIT_BRANCH == "main"'
-  - if: '$CI_COMMIT_TAG'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
 
 # -----------------------------------------------------------------------------
 # 2. TEST STAGE: ตรวจสอบความปลอดภัยและรัน Unit Test ทุกชุด (18 Suites)
 # -----------------------------------------------------------------------------
 test:unit_and_security:
   stage: test
-  image: node:20-bookworm-slim
+  image: node:22-bookworm-slim
 
   dependencies:
-  - build:frontend
+    - build:frontend
 
   before_script:
-  - node -v
-  - npm -v
-  - npm ci --prefer-offline --no-audit
-  - cd server && npm ci --prefer-offline --no-audit && cd ..
+    - node -v
+    - npm -v
+    - npm ci --prefer-offline --no-audit || npm install --no-audit
+    - cd server && (npm ci --prefer-offline --no-audit || npm install --no-audit) && cd ..
 
   script:
-  - test -f dist/index.html
-  - test -d dist/assets
-  - npm test
+    - test -f dist/index.html
+    - test -d dist/assets
+    - npm test
 
   rules:
-  - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-  - if: '$CI_COMMIT_BRANCH == "main"'
-  - if: '$CI_COMMIT_TAG'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
 
 # -----------------------------------------------------------------------------
 # 3. DEPLOY STAGE: นำไฟล์ขึ้น Production Server แบบ Zero-Downtime
-# รองรับทั้งแบบ Docker Compose และ PM2 / Native อัตโนมัติ (Auto-Detect)
+# รองรับทั้ง SSH_PRIVATE_KEY (แบบ Variable และ File) และ PROD_SSH_PASSWORD
+# รองรับทั้งโหมด Native (PM2 / Systemd / Nginx) และโหมด Docker Compose
 # -----------------------------------------------------------------------------
 deploy:production:
   stage: deploy
-  image: alpine:latest
+  image: alpine:3.20
   dependencies:
-  - build:frontend
+    - build:frontend
+
   before_script:
-  - apk add --no-cache openssh-client rsync curl bash
-  - eval "$(ssh-agent -s)"
-  - mkdir -p ~/.ssh
-  - chmod 700 ~/.ssh
+    - apk add --no-cache openssh-client rsync curl bash sshpass
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
 
-  # Validate SSH Private Key
-  - test -s "$SSH_PRIVATE_KEY"
-  - ssh-keygen -y -f "$SSH_PRIVATE_KEY" > /dev/null
-
-  # Load SSH Private Key
-  - chmod 400 "$SSH_PRIVATE_KEY"
-  - ssh-add "$SSH_PRIVATE_KEY"
-
-  # Register Production SSH Host
-  - ssh-keyscan -H "$PROD_SERVER_IP" >> ~/.ssh/known_hosts 2>/dev/null
-  - chmod 644 ~/.ssh/known_hosts
-  script:
-  - echo "=========================================================="
-  - 'echo "🚀 Deploying NetMonitor to Production: $PROD_SSH_USER@$PROD_SERVER_IP"'
-  - 'echo "   Target Directory: $PROD_APP_DIR"'
-  - 'echo "   Commit: $CI_COMMIT_SHORT_SHA - $CI_COMMIT_TITLE"'
-  - echo "=========================================================="
-
-  # 1. ตรวจสอบการเชื่อมต่อ SSH ไปยัง Production Server
-  - ssh -o StrictHostKeyChecking=no "$PROD_SSH_USER@$PROD_SERVER_IP" "uname -a && uptime"
-
-  # 2. สำรองข้อมูลฐานข้อมูลเดิม (db.json) ก่อนทำการอัปเดต เพื่อความปลอดภัยสูงสุด
-  - |
-    ssh -o StrictHostKeyChecking=no "$PROD_SSH_USER@$PROD_SERVER_IP" "
-      mkdir -p $PROD_BACKUP_DIR
-      if [ -f $PROD_APP_DIR/data/db.json ]; then
-        BACKUP_FILE=$PROD_BACKUP_DIR/db_\$(date +%Y%m%d_%H%M%S).json
-        cp $PROD_APP_DIR/data/db.json \$BACKUP_FILE
-        echo '✅ Data backup created at:' \$BACKUP_FILE
-        # เก็บประวัติ Backup ย้อนหลัง 10 ไฟล์ล่าสุด
-        ls -1t $PROD_BACKUP_DIR/db_*.json | tail -n +11 | xargs -r rm -f
-      fi
-    "
-
-  # 3. สร้างไดเรกทอรีโครงสร้างที่จำเป็นบน Production Server
-  - |
-    ssh -o StrictHostKeyChecking=no "$PROD_SSH_USER@$PROD_SERVER_IP" "
-      mkdir -p $PROD_APP_DIR/dist \
-               $PROD_APP_DIR/server \
-               $PROD_APP_DIR/data/targets/blackbox \
-               $PROD_APP_DIR/data/targets/snmp \
-               /etc/prometheus/targets/blackbox \
-               /etc/prometheus/targets/snmp \
-               /etc/nginx/sites-available
-    "
-
-  # 4. Sync ไฟล์ Frontend Release Bundle (dist/) ขึ้น Production
-  - echo "📦 Uploading Frontend Bundle (dist/)..."
-  - rsync -avz --delete -e "ssh -o StrictHostKeyChecking=no" dist/ "$PROD_SSH_USER@$PROD_SERVER_IP:$PROD_APP_DIR/dist/"
-
-  # 5. Sync ไฟล์ Backend Sourcecode (server/) โดยไม่ลบ node_modules บน Server
-  - echo "📦 Uploading Backend Engine (server/)..."
-  - rsync -avz --exclude="node_modules" -e "ssh -o StrictHostKeyChecking=no" server/ "$PROD_SSH_USER@$PROD_SERVER_IP:$PROD_APP_DIR/server/"
-
-  # 6. Sync ค่าคอนฟิก Nginx, Docker Compose, และ Prometheus Templates
-  - echo "📦 Uploading System Configurations & Compose files..."
-  - rsync -avz -e "ssh -o StrictHostKeyChecking=no" config/ "$PROD_SSH_USER@$PROD_SERVER_IP:$PROD_APP_DIR/config/"
-  - rsync -avz -e "ssh -o StrictHostKeyChecking=no" docker-compose.yml Dockerfile package.json "$PROD_SSH_USER@$PROD_SERVER_IP:$PROD_APP_DIR/"
-
-  # 7. สั่ง Reload Service แบบ Zero-Downtime บน Production (Auto-detect ระหว่าง Docker Compose หรือ PM2)
-  - echo "🔄 Restarting NetMonitor Services on Production Host..."
-  - |
-    ssh -o StrictHostKeyChecking=no "$PROD_SSH_USER@$PROD_SERVER_IP" "
-      set -e
-      cd $PROD_APP_DIR
-
-      # กรณี Production รันด้วย Docker Compose
-      if [ -f docker-compose.yml ] && (command -v docker-compose >/dev/null 2>&1 || docker compose version >/dev/null 2>&1); then
-        echo '🐋 Deploying via Docker Compose on Production...'
-        if docker compose version >/dev/null 2>&1; then
-          docker compose up -d --build
+    # รองรับทั้ง SSH_PRIVATE_KEY (ไม่ว่าจะตั้งเป็น Type: Variable หรือ Type: File) และ PROD_SSH_PASSWORD
+    - |
+      if [ -n "$SSH_PRIVATE_KEY" ]; then
+        echo "🔑 Configuring SSH Private Key authentication..."
+        if [ -f "$SSH_PRIVATE_KEY" ]; then
+          tr -d '\r' < "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
         else
-          docker-compose up -d --build
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_deploy
         fi
-        echo '✅ Docker Compose services updated and running.'
-
-      # กรณี Production รันด้วย Native Node.js + PM2 / Systemd
+        # ตรวจสอบว่ามี newline ปิดท้ายไฟล์เสมอ
+        echo "" >> ~/.ssh/id_deploy
+        chmod 600 ~/.ssh/id_deploy
+        export SSH_CMD="ssh -i ~/.ssh/id_deploy -p ${PROD_SSH_PORT:-22} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15"
+        export RSYNC_SSH="ssh -i ~/.ssh/id_deploy -p ${PROD_SSH_PORT:-22} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15"
+      elif [ -n "$PROD_SSH_PASSWORD" ]; then
+        echo "🔑 Configuring SSH Password authentication (sshpass)..."
+        export SSHPASS="$PROD_SSH_PASSWORD"
+        export SSH_CMD="sshpass -e ssh -p ${PROD_SSH_PORT:-22} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15"
+        export RSYNC_SSH="sshpass -e ssh -p ${PROD_SSH_PORT:-22} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=15"
       else
-        echo '⚙️ Deploying via Native PM2 / Process Manager...'
-        cd $PROD_APP_DIR/server
-        npm ci --omit=dev --prefer-offline || npm install --omit=dev
-
-        if command -v pm2 >/dev/null 2>&1; then
-          echo 'Reloading via PM2...'
-          pm2 reload netmonitor-backend || pm2 restart netmonitor-backend || pm2 start server.js --name netmonitor-backend
-          pm2 save || true
-        elif systemctl is-active --quiet netmonitor-backend; then
-          echo 'Restarting via Systemd...'
-          systemctl restart netmonitor-backend
-        else
-          echo 'Starting server in background...'
-          nohup node server.js > /var/log/netmonitor.log 2>&1 &
-        fi
-
-        # ตรวจสอบและ Reload Nginx หากมีคอนฟิกใหม่
-        if [ -f $PROD_APP_DIR/config/nginx/netmonitor.conf ]; then
-          cp $PROD_APP_DIR/config/nginx/netmonitor.conf /etc/nginx/sites-available/netmonitor.conf
-          ln -sf /etc/nginx/sites-available/netmonitor.conf /etc/nginx/sites-enabled/default 2>/dev/null || true
-          nginx -t && systemctl reload nginx || true
-        fi
+        echo "❌ [ERROR] ไม่พบค่าตัวแปร SSH_PRIVATE_KEY หรือ PROD_SSH_PASSWORD ใน GitLab CI/CD Variables!"
+        echo "👉 กรุณาเข้าไปที่ GitLab: Settings > CI/CD > Variables แล้วเพิ่ม SSH_PRIVATE_KEY (หรือ PROD_SSH_PASSWORD)"
+        exit 1
       fi
-    "
+
+  script:
+    - echo "=========================================================="
+    - 'echo "🚀 Deploying NetMonitor to Production: $PROD_SSH_USER@$PROD_SERVER_IP:${PROD_SSH_PORT:-22}"'
+    - 'echo "   Target Directory: $PROD_APP_DIR"'
+    - 'echo "   Deploy Mode:      ${DEPLOY_MODE:-auto}"'
+    - 'echo "   Commit:           $CI_COMMIT_SHORT_SHA - $CI_COMMIT_TITLE"'
+    - echo "=========================================================="
+
+    # 1. ตรวจสอบการเชื่อมต่อ SSH ไปยัง Production Server
+    - $SSH_CMD "$PROD_SSH_USER@$PROD_SERVER_IP" "uname -a && uptime"
+
+    # 2. สำรองข้อมูลฐานข้อมูลเดิม (db.json) ก่อนทำการอัปเดต เพื่อความปลอดภัยสูงสุด
+    - |
+      $SSH_CMD "$PROD_SSH_USER@$PROD_SERVER_IP" "
+        mkdir -p $PROD_BACKUP_DIR
+        if [ -f $PROD_APP_DIR/data/db.json ]; then
+          BACKUP_FILE=$PROD_BACKUP_DIR/db_\$(date +%Y%m%d_%H%M%S).json
+          cp $PROD_APP_DIR/data/db.json \$BACKUP_FILE
+          echo '✅ Data backup created at:' \$BACKUP_FILE
+          ls -1t $PROD_BACKUP_DIR/db_*.json 2>/dev/null | tail -n +11 | xargs -r rm -f || true
+        fi
+      "
+
+    # 3. สร้างไดเรกทอรีโครงสร้างที่จำเป็นบน Production Server
+    - |
+      $SSH_CMD "$PROD_SSH_USER@$PROD_SERVER_IP" "
+        mkdir -p $PROD_APP_DIR/dist \
+                 $PROD_APP_DIR/server \
+                 $PROD_APP_DIR/config \
+                 $PROD_APP_DIR/src \
+                 $PROD_APP_DIR/public \
+                 $PROD_APP_DIR/scripts \
+                 $PROD_APP_DIR/data/targets/blackbox \
+                 $PROD_APP_DIR/data/targets/snmp \
+                 /etc/prometheus/targets/blackbox \
+                 /etc/prometheus/targets/snmp \
+                 /etc/nginx/sites-available
+      "
+
+    # 4. Sync ไฟล์ Frontend Release Bundle (dist/) ขึ้น Production
+    - echo "📦 Uploading Frontend Bundle (dist/)..."
+    - rsync -avz --delete -e "$RSYNC_SSH" dist/ "$PROD_SSH_USER@$PROD_SERVER_IP:$PROD_APP_DIR/dist/"
+
+    # 5. Sync ไฟล์ Backend Sourcecode (server/) โดยไม่ลบ node_modules บน Server
+    - echo "📦 Uploading Backend Engine (server/)..."
+    - rsync -avz --exclude="node_modules" -e "$RSYNC_SSH" server/ "$PROD_SSH_USER@$PROD_SERVER_IP:$PROD_APP_DIR/server/"
+
+    # 6. Sync ค่าคอนฟิกและไฟล์โปรเจกต์ครบชุด (โดยไม่ทับ data/db.json และ .env บน Production)
+    - echo "📦 Uploading System Configurations & Project Files..."
+    - rsync -avz -e "$RSYNC_SSH" config/ "$PROD_SSH_USER@$PROD_SERVER_IP:$PROD_APP_DIR/config/"
+    - rsync -avz -e "$RSYNC_SSH" src/ "$PROD_SSH_USER@$PROD_SERVER_IP:$PROD_APP_DIR/src/"
+    - rsync -avz -e "$RSYNC_SSH" public/ "$PROD_SSH_USER@$PROD_SERVER_IP:$PROD_APP_DIR/public/"
+    - rsync -avz -e "$RSYNC_SSH" scripts/ "$PROD_SSH_USER@$PROD_SERVER_IP:$PROD_APP_DIR/scripts/"
+    - rsync -avz -e "$RSYNC_SSH" data/defaultDevices.json data/devices.template.json "$PROD_SSH_USER@$PROD_SERVER_IP:$PROD_APP_DIR/data/"
+    - rsync -avz -e "$RSYNC_SSH" docker-compose.yml Dockerfile package.json package-lock.json index.html vite.config.js .env.example "$PROD_SSH_USER@$PROD_SERVER_IP:$PROD_APP_DIR/"
+
+    # 7. สั่ง Reload Service แบบ Zero-Downtime บน Production
+    # ตรวจสอบอย่างแม่นยำว่า Production รันด้วย Docker Container จริง หรือรันด้วย Native PM2 / Systemd
+    - echo "🔄 Restarting NetMonitor Services on Production Host..."
+    - |
+      $SSH_CMD "$PROD_SSH_USER@$PROD_SERVER_IP" "
+        set -e
+        cd $PROD_APP_DIR
+
+        IS_DOCKER_RUNNING=false
+        if command -v docker >/dev/null 2>&1; then
+          if docker ps --format '{{.Names}}' 2>/dev/null | grep -Eq '^netmonitor-(app|nginx|prometheus)$'; then
+            IS_DOCKER_RUNNING=true
+          fi
+        fi
+
+        if [ \"${DEPLOY_MODE:-auto}\" = \"docker\" ] || ([ \"${DEPLOY_MODE:-auto}\" = \"auto\" ] && [ \"\$IS_DOCKER_RUNNING\" = \"true\" ]); then
+          echo '🐋 Deploying via Docker Compose on Production...'
+          if [ ! -f .env ] && [ -f .env.example ]; then
+            cp .env.example .env
+          fi
+          chown -R 10001:10001 data/ 2>/dev/null || chmod -R 777 data/ 2>/dev/null || true
+
+          if docker compose version >/dev/null 2>&1; then
+            docker compose up -d --build
+          else
+            docker-compose up -d --build
+          fi
+
+          # อัปเดตไฟล์ Frontend dist เข้าสู่ Container/Volume ทันทีเพื่อให้หน้าเว็บเปลี่ยนเป็นเวอร์ชันล่าสุดทันที
+          if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^netmonitor-app$'; then
+            docker cp $PROD_APP_DIR/dist/. netmonitor-app:/app/dist/ 2>/dev/null || true
+          fi
+          if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^netmonitor-nginx$'; then
+            docker exec netmonitor-nginx nginx -s reload 2>/dev/null || true
+          fi
+          echo '✅ Docker Compose services updated and running.'
+
+        else
+          echo '⚙️ Deploying via Native PM2 / Systemd / Node Process Manager...'
+          cd $PROD_APP_DIR/server
+          npm ci --omit=dev --prefer-offline --no-audit || npm install --omit=dev --no-audit
+
+          if command -v pm2 >/dev/null 2>&1; then
+            echo 'Reloading via PM2...'
+            if pm2 list | grep -q 'netmonitor-backend'; then
+              pm2 reload netmonitor-backend --update-env || pm2 restart netmonitor-backend --update-env
+            elif pm2 list | grep -q 'netmonitor'; then
+              pm2 reload netmonitor --update-env || pm2 restart netmonitor --update-env
+            elif pm2 list | grep -q 'server'; then
+              pm2 reload server --update-env || pm2 restart server --update-env
+            else
+              pm2 start server.js --name netmonitor-backend
+            fi
+            pm2 save || true
+          elif command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet netmonitor-backend 2>/dev/null; then
+            echo 'Restarting via Systemd (netmonitor-backend)...'
+            systemctl restart netmonitor-backend
+          elif command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet netmonitor 2>/dev/null; then
+            echo 'Restarting via Systemd (netmonitor)...'
+            systemctl restart netmonitor
+          else
+            echo 'Restarting standalone Node.js process...'
+            pkill -f 'node.*server\.js' 2>/dev/null || true
+            sleep 1
+            nohup node server.js > /var/log/netmonitor.log 2>&1 &
+          fi
+
+          # Reload Nginx บนเครื่อง Production หากเปิดใช้งานอยู่
+          if command -v nginx >/dev/null 2>&1; then
+            nginx -t 2>/dev/null && (systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null) || true
+          fi
+          echo '✅ Native Production services updated and running.'
+        fi
+      "
+
   rules:
-  - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+
   environment:
     name: production
     url: http://${PROD_SERVER_IP}
@@ -217,34 +279,78 @@ deploy:production:
 # -----------------------------------------------------------------------------
 verify:health_check:
   stage: verify
-  image: alpine:latest
+  image: alpine:3.20
   before_script:
-  - apk add --no-cache curl bash
-  script:
-  - echo "🔍 Verifying NetMonitor Production Health on http://$PROD_SERVER_IP/api/health..."
-  - |
-    MAX_RETRIES=15
-    RETRY_COUNT=0
-    SUCCESS=false
+    - apk add --no-cache curl bash openssh-client sshpass
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - |
+      if [ -n "$SSH_PRIVATE_KEY" ]; then
+        if [ -f "$SSH_PRIVATE_KEY" ]; then
+          tr -d '\r' < "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+        else
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_deploy
+        fi
+        echo "" >> ~/.ssh/id_deploy
+        chmod 600 ~/.ssh/id_deploy
+        export SSH_CMD="ssh -i ~/.ssh/id_deploy -p ${PROD_SSH_PORT:-22} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+      elif [ -n "$PROD_SSH_PASSWORD" ]; then
+        export SSHPASS="$PROD_SSH_PASSWORD"
+        export SSH_CMD="sshpass -e ssh -p ${PROD_SSH_PORT:-22} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10"
+      fi
 
-    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-      STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://$PROD_SERVER_IP/api/health" || true)
-      if [ "$STATUS" = "200" ]; then
-        echo "✅ Health check PASSED! HTTP 200 received from Production Server."
-        curl -s "http://$PROD_SERVER_IP/api/health"
-        echo ""
-        SUCCESS=true
-        break
-      else
-        echo "⏳ Waiting for backend to respond... (Attempt $((RETRY_COUNT+1))/$MAX_RETRIES, HTTP: $STATUS)"
+  script:
+    - echo "🔍 Verifying NetMonitor Production Health on $PROD_SERVER_IP..."
+    - |
+      MAX_RETRIES=15
+      RETRY_COUNT=0
+      SUCCESS=false
+
+      while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        # 1. ตรวจสอบผ่าน HTTP Port 80 (Nginx Gateway)
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://$PROD_SERVER_IP/api/health" || echo "000")
+        if [ "$STATUS" = "200" ]; then
+          echo "✅ Health check PASSED via http://$PROD_SERVER_IP/api/health (HTTP 200)"
+          curl -s "http://$PROD_SERVER_IP/api/health"
+          echo ""
+          SUCCESS=true
+          break
+        fi
+
+        # 2. ตรวจสอบผ่าน HTTP Port 5001 (Direct Backend Port)
+        STATUS_5001=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "http://$PROD_SERVER_IP:5001/api/health" || echo "000")
+        if [ "$STATUS_5001" = "200" ]; then
+          echo "✅ Health check PASSED via http://$PROD_SERVER_IP:5001/api/health (HTTP 200)"
+          curl -s "http://$PROD_SERVER_IP:5001/api/health"
+          echo ""
+          SUCCESS=true
+          break
+        fi
+
+        # 3. ตรวจสอบผ่าน SSH Localhost (กรณี Firewall กั้นพอร์ต HTTP จากฝั่ง GitLab Runner)
+        if [ -n "$SSH_CMD" ]; then
+          LOCAL_HEALTH=$($SSH_CMD "$PROD_SSH_USER@$PROD_SERVER_IP" "curl -sf http://127.0.0.1:5001/api/health || curl -sf http://127.0.0.1/api/health" 2>/dev/null || true)
+          if [ -n "$LOCAL_HEALTH" ]; then
+            echo "✅ Health check PASSED via Production localhost (HTTP 200):"
+            echo "$LOCAL_HEALTH"
+            SUCCESS=true
+            break
+          fi
+        fi
+
+        echo "⏳ Waiting for backend to respond... (Attempt $((RETRY_COUNT+1))/$MAX_RETRIES, HTTP80: $STATUS, HTTP5001: $STATUS_5001)"
         sleep 3
         RETRY_COUNT=$((RETRY_COUNT+1))
-      fi
-    done
+      done
 
-    if [ "$SUCCESS" = false ]; then
-      echo "❌ [FATAL] Health check TIMED OUT! Production service did not return HTTP 200."
-      exit 1
-    fi
+      if [ "$SUCCESS" = false ]; then
+        echo "❌ [FATAL] Health check TIMED OUT! Production service did not return HTTP 200."
+        exit 1
+      fi
+
   rules:
-  - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_PIPELINE_SOURCE == "web"'

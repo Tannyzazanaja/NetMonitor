@@ -1,13 +1,13 @@
 # =============================================================================
 # Stage 1: Build Frontend Single Page Application
 # =============================================================================
-FROM node:20-alpine AS builder
+FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
-# Install root/frontend dependencies (frozen lockfile)
+# Install root/frontend dependencies (with fallback if lockfile came from Windows)
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --prefer-offline --no-audit || npm install --no-audit
 
 # Copy frontend source files
 COPY index.html vite.config.js ./
@@ -20,7 +20,7 @@ RUN npm run build
 # =============================================================================
 # Stage 2: Hardened Enterprise Runtime Environment (Non-Root, Minimal Alpine)
 # =============================================================================
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
@@ -34,7 +34,7 @@ RUN addgroup -g 10001 -S netmon && \
 # Install backend production dependencies
 COPY server/package*.json ./server/
 WORKDIR /app/server
-RUN npm ci --omit=dev && npm cache clean --force
+RUN (npm ci --omit=dev --no-audit || npm install --omit=dev --no-audit) && npm cache clean --force
 
 WORKDIR /app
 

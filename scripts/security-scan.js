@@ -22,6 +22,7 @@ const fs = require('fs');
 const ROOT_DIR = path.resolve(__dirname, '..');
 const IGNORED_DIRS = new Set([
   'node_modules',
+  '.npm',
   '.git',
   'dist',
   'coverage',

@@ -44,6 +44,8 @@ async function runCleanInstallVerification() {
   }
 
   let step = 1;
+  let exitCode = 0;
+  const dataDir = path.resolve(__dirname, '../data');
   const pass = (desc) => console.log(`  [PASS Step ${step++}] ${desc}`);
 
   try {
@@ -129,16 +131,24 @@ async function runCleanInstallVerification() {
     console.log('\n====================================================');
     console.log('🎉 CLEAN INSTALLATION PIPELINE VERIFIED SUCCESSFULLY!');
     console.log('====================================================\n');
-    process.exit(0);
   } catch (err) {
     console.error(`\n❌ Clean install verification failed: ${err.message}`);
-    process.exit(1);
+    exitCode = 1;
   } finally {
-    // Cleanup temporary test directory
+    // Cleanup temporary test directory and any stale .test_clean_* directories
     try {
       fs.rmSync(testTempDir, { recursive: true, force: true });
+      if (fs.existsSync(dataDir)) {
+        for (const entry of fs.readdirSync(dataDir)) {
+          if (/^\.test_clean_\d+$/.test(entry)) {
+            fs.rmSync(path.join(dataDir, entry), { recursive: true, force: true });
+          }
+        }
+      }
     } catch {}
   }
+
+  process.exit(exitCode);
 }
 
 runCleanInstallVerification();
