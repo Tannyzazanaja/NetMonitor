@@ -1259,8 +1259,8 @@ function queryDevicePerformance(ip, community) {
       '1.3.6.1.4.1.9.9.13.1.5.1.3',    // ciscoEnvMonSupplyState
       '1.3.6.1.4.1.9.9.13.1.4.1.3',    // ciscoEnvMonFanState
       '1.3.6.1.2.1.105.1.3.1.1.2',     // pethMainPsePower (Total Nominal PoE Budget W)
-      '1.3.6.1.2.1.105.1.3.1.1.4',     // pethMainPseConsumptionPower (Measured / Allocated PoE W)
-      '1.3.6.1.4.1.9.9.402.1.3.1.2',   // cpeExtMainPseUsedPower (Cisco Allocated/Used PoE)
+      '1.3.6.1.2.1.105.1.3.1.1.4',     // pethMainPseConsumptionPower (Measured Main PSE Consumption W)
+      '1.3.6.1.4.1.9.9.402.1.3.1.4',   // cpeExtMainPseUsedPower (Cisco Total Allocated PoE in mW)
       '1.3.6.1.4.1.9.6.1.101.108.1.3.1.3', // rlPethPseMainPowerConsumed (Cisco SMB/C1200/C1300)
       '1.3.6.1.4.1.9.6.1.101.108.1.3.1.4', // rlPethPseMainPowerAllocated (Cisco SMB/C1200/C1300)
     ];
@@ -1446,7 +1446,7 @@ function queryDevicePerformance(ip, community) {
         for (const k in map) {
           if (k.startsWith('1.3.6.1.2.1.105.1.3.1.1.2.')) poeBudget = parseFloat(map[k]);
           if (k.startsWith('1.3.6.1.2.1.105.1.3.1.1.4.')) poeConsumed = parseFloat(map[k]);
-          if (k.startsWith('1.3.6.1.4.1.9.9.402.1.3.1.2.')) cpeMainUsed = parseFloat(map[k]);
+          if (k.startsWith('1.3.6.1.4.1.9.9.402.1.3.1.4.')) cpeMainUsed = parseFloat(map[k]);
           if (k.startsWith('1.3.6.1.4.1.9.6.1.101.108.1.3.1.3.')) smbMainConsumed = parseFloat(map[k]);
           if (k.startsWith('1.3.6.1.4.1.9.6.1.101.108.1.3.1.4.')) smbMainAllocated = parseFloat(map[k]);
         }
@@ -1454,6 +1454,7 @@ function queryDevicePerformance(ip, community) {
         if (poeBudget !== null && !isNaN(poeBudget) && poeBudget > 0) {
           let allocatedWatts = null;
           let actualWatts = poeConsumed !== null && !isNaN(poeConsumed) ? poeConsumed : 0;
+          let portActualWatts = null;
           let activePorts = 0;
 
           try {
@@ -1468,8 +1469,8 @@ function queryDevicePerformance(ip, community) {
             ] = await Promise.all([
               snmpSubtree(session, '1.3.6.1.2.1.105.1.1.1.6', 900),          // pethPsePortDetectionStatus (3 = deliveringPower)
               snmpSubtree(session, '1.3.6.1.2.1.105.1.1.1.10', 900),         // pethPsePortPowerClassifications (1..5)
-              snmpSubtree(session, '1.3.6.1.4.1.9.9.402.1.2.1.7', 900),      // cpeExtPsePortPwrAllocated (mW)
-              snmpSubtree(session, '1.3.6.1.4.1.9.9.402.1.2.1.8', 900),      // cpeExtPsePortPwrConsumption (mW)
+              snmpSubtree(session, '1.3.6.1.4.1.9.9.402.1.2.1.8', 900),      // cpeExtPsePortPwrAllocated (mW)
+              snmpSubtree(session, '1.3.6.1.4.1.9.9.402.1.2.1.9', 900),      // cpeExtPsePortPwrConsumption (mW)
               snmpSubtree(session, '1.3.6.1.4.1.9.6.1.101.108.1.1.1.4', 900), // rlPethPsePortOutputPower (mW)
               snmpSubtree(session, '1.3.6.1.4.1.9.6.1.101.108.1.1.1.12', 900) // rlPethPsePortMaxPowerAllocAllowed (mW)
             ]);
@@ -1484,23 +1485,21 @@ function queryDevicePerformance(ip, community) {
             });
             activePorts = deliveringIndices.size;
 
-            // 8.1 Actual Consumption from per-port milliwatt sensors if available
+            // 8.1 Per-port Actual Consumption (mW -> W)
             if (ciscoActualVbs.length > 0) {
               let sumMw = 0;
               ciscoActualVbs.forEach(vb => {
                 const v = parseFloat(vb.value.toString());
                 if (!isNaN(v) && v > 0) sumMw += v;
               });
-              if (sumMw > 0) actualWatts = Math.round((sumMw / 1000) * 10) / 10;
+              if (sumMw > 0) portActualWatts = Math.round((sumMw / 1000) * 10) / 10;
             } else if (smbActualVbs.length > 0) {
               let sumMw = 0;
               smbActualVbs.forEach(vb => {
                 const v = parseFloat(vb.value.toString());
                 if (!isNaN(v) && v > 0) sumMw += v;
               });
-              if (sumMw > 0) actualWatts = Math.round((sumMw / 1000) * 10) / 10;
-            } else if (smbMainConsumed !== null && !isNaN(smbMainConsumed) && smbMainConsumed > 0) {
-              actualWatts = smbMainConsumed > poeBudget * 2 ? Math.round((smbMainConsumed / 1000) * 10) / 10 : smbMainConsumed;
+              if (sumMw > 0) portActualWatts = Math.round((sumMw / 1000) * 10) / 10;
             }
 
             // 8.2 Allocated Power from Cisco / SMB / IEEE 802.3 Port Classifications
@@ -1512,6 +1511,9 @@ function queryDevicePerformance(ip, community) {
               });
               if (sumAllocMw > 0) allocatedWatts = Math.round((sumAllocMw / 1000) * 10) / 10;
             }
+            if (allocatedWatts === null && cpeMainUsed !== null && !isNaN(cpeMainUsed) && cpeMainUsed > 0) {
+              allocatedWatts = cpeMainUsed > poeBudget * 2 ? Math.round((cpeMainUsed / 1000) * 10) / 10 : cpeMainUsed;
+            }
             if (allocatedWatts === null && smbAllocVbs.length > 0 && deliveringIndices.size > 0) {
               let sumAllocMw = 0;
               smbAllocVbs.forEach(vb => {
@@ -1522,9 +1524,6 @@ function queryDevicePerformance(ip, community) {
                 }
               });
               if (sumAllocMw > 0) allocatedWatts = Math.round((sumAllocMw / 1000) * 10) / 10;
-            }
-            if (allocatedWatts === null && cpeMainUsed !== null && !isNaN(cpeMainUsed) && cpeMainUsed > 0) {
-              allocatedWatts = cpeMainUsed > poeBudget * 2 ? Math.round((cpeMainUsed / 1000) * 10) / 10 : cpeMainUsed;
             }
             if (allocatedWatts === null && smbMainAllocated !== null && !isNaN(smbMainAllocated) && smbMainAllocated > 0) {
               allocatedWatts = smbMainAllocated > poeBudget * 2 ? Math.round((smbMainAllocated / 1000) * 10) / 10 : smbMainAllocated;
@@ -1543,10 +1542,22 @@ function queryDevicePerformance(ip, community) {
               });
               if (sumClassWatts > 0) allocatedWatts = Math.round(sumClassWatts * 10) / 10;
             }
+
+            // 8.3 Resolve Actual Consumption:
+            // Prefer pethMainPseConsumptionPower (1.3.6.1.2.1.105.1.3.1.1.4) when it reports real consumption
+            // (i.e. > 0 and distinct from allocatedWatts); otherwise use per-port actual sensors (portActualWatts / smbMainConsumed)
+            if (
+              (actualWatts <= 0 || (allocatedWatts !== null && Math.abs(actualWatts - allocatedWatts) < 1)) &&
+              portActualWatts !== null &&
+              portActualWatts > 0
+            ) {
+              actualWatts = portActualWatts;
+            } else if (actualWatts <= 0 && smbMainConsumed !== null && !isNaN(smbMainConsumed) && smbMainConsumed > 0) {
+              actualWatts = smbMainConsumed > poeBudget * 2 ? Math.round((smbMainConsumed / 1000) * 10) / 10 : smbMainConsumed;
+            }
           } catch {}
 
           if (allocatedWatts === null) {
-            // Fallback: if poeConsumed from main PSE is greater than actualWatts, it represents Allocated Power; otherwise use poeBudget or actualWatts
             if (poeConsumed !== null && !isNaN(poeConsumed) && poeConsumed > actualWatts) {
               allocatedWatts = poeConsumed;
             } else {
@@ -1558,6 +1569,7 @@ function queryDevicePerformance(ip, community) {
             budgetWatts: poeBudget,
             allocatedWatts,
             actualWatts,
+            portActualWatts: portActualWatts ?? actualWatts,
             usedWatts: actualWatts,
             allocatedPercent: Math.min(100, Math.round((allocatedWatts / poeBudget) * 100)),
             actualPercent: Math.min(100, Math.round((actualWatts / poeBudget) * 100)),
