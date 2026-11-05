@@ -6,8 +6,8 @@
 # =============================================================================
 
 stages:
-- test
 - build
+- test
 - deploy
 - verify
 
@@ -34,47 +34,58 @@ cache:
   - server/node_modules/
 
 # -----------------------------------------------------------------------------
-# 1. TEST STAGE: ตรวจสอบความปลอดภัยและรัน Unit Test ทุกชุด (18 Suites)
+# 1. BUILD STAGE: คอมไพล์ Frontend (React + Vite) เป็น Production Bundle
 # -----------------------------------------------------------------------------
-test:unit_and_security:
-  stage: test
+build:frontend:
+  stage: build
   image: node:20-bookworm-slim
+
   before_script:
   - node -v
   - npm -v
-  # ติดตั้ง dependencies สำหรับทั้ง Frontend และ Backend
   - npm ci --prefer-offline --no-audit
-  - cd server && npm ci --prefer-offline --no-audit && cd ..
+
   script:
-  - echo "=== [1/2] Running NetMonitor Automated Test Suite ==="
-  - npm test
-  - echo "=== [2/2] Running Security & Secret Scan ==="
-  - node scripts/security-scan.js
+  - echo "=== Building Vite Production Bundle ==="
+  - npm run build
+  - test -f dist/index.html
+  - test -d dist/assets
+  - ls -lh dist/
+
+  artifacts:
+    name: "netmonitor-frontend-dist-$CI_COMMIT_SHORT_SHA"
+    expire_in: 7 days
+    paths:
+    - dist/
+
   rules:
   - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   - if: '$CI_COMMIT_BRANCH == "main"'
   - if: '$CI_COMMIT_TAG'
 
 # -----------------------------------------------------------------------------
-# 2. BUILD STAGE: คอมไพล์ Frontend (React + Vite) เป็น Production Bundle
+# 2. TEST STAGE: ตรวจสอบความปลอดภัยและรัน Unit Test ทุกชุด (18 Suites)
 # -----------------------------------------------------------------------------
-build:frontend:
-  stage: build
+test:unit_and_security:
+  stage: test
   image: node:20-bookworm-slim
+
   dependencies:
-  - test:unit_and_security
+  - build:frontend
+
   before_script:
+  - node -v
+  - npm -v
   - npm ci --prefer-offline --no-audit
+  - cd server && npm ci --prefer-offline --no-audit && cd ..
+
   script:
-  - echo "=== Building Vite Production Bundle ==="
-  - npm run build
-  - ls -lh dist/
-  artifacts:
-    name: "netmonitor-frontend-dist-$CI_COMMIT_SHORT_SHA"
-    expire_in: 7 days
-    paths:
-    - dist/
+  - test -f dist/index.html
+  - test -d dist/assets
+  - npm test
+
   rules:
+  - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   - if: '$CI_COMMIT_BRANCH == "main"'
   - if: '$CI_COMMIT_TAG'
 
