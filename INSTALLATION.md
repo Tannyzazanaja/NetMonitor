@@ -10,9 +10,9 @@ This guide provides instructions for deploying **NetMonitor Enterprise** across 
 
 | Deployment Tier | Monitored Endpoints | CPU Cores | RAM | Storage (SSD) | Typical Environment |
 |---|---|---|---|---|---|
-| **Small / Edge** | 1 – 50 devices | 2 Cores | 4 GB | 30 GB | Branch office, Lab, Edge site |
-| **Medium / Campus** | 51 – 200 devices | 4 Cores | 8 GB | 60 GB | Corporate headquarters, Campus |
-| **Large / Data Center** | 201 – 500+ devices | 8 Cores | 16 GB | 120 GB | Multi-rack DC, ISP aggregation |
+| **Small / Edge** | 1 – 50 devices | 1 Cores | 2 GB | 30 GB | Branch office, Lab, Edge site |
+| **Medium / Campus** | 51 – 200 devices | 1 Cores | 4 GB | 60 GB | Corporate headquarters, Campus |
+| **Large / Data Center** | 201 – 500+ devices | 2 Cores | 4 GB | 120 GB | Multi-rack DC, ISP aggregation |
 
 ### Operating System & Network Requirements
 - **OS**: Ubuntu 22.04+ LTS, Debian 12+, RHEL 9+, Rocky Linux 9+, or Alpine Linux 3.19+
