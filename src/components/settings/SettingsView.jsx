@@ -517,34 +517,6 @@ export function SettingsView() {
           </div>
         )}
 
-        <div className="input-group">
-          <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            LINE Channel Access Token (Messaging API)
-          </label>
-          <input
-            type="password"
-            value={formData.lineChannelToken || ''}
-            onChange={(e) => handleChange('lineChannelToken', e.target.value)}
-            disabled={!isAdmin}
-            className="form-input"
-            placeholder="ใส่ Channel Access Token ที่ได้จาก LINE Developers..."
-          />
-        </div>
-
-        <div className="input-group">
-          <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            LINE Target ID (User ID / Group ID)
-          </label>
-          <input
-            type="text"
-            value={formData.lineTargetId || ''}
-            onChange={(e) => handleChange('lineTargetId', e.target.value)}
-            disabled={!isAdmin}
-            className="form-input"
-            placeholder="ใส่ User ID หรือ Group ID ที่ต้องการให้บอทส่งข้อความไปหา..."
-          />
-        </div>
-
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
           <button
             type="button"

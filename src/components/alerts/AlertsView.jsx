@@ -1,11 +1,25 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   AlertTriangle, ShieldAlert, CheckCircle2, RefreshCw,
   Bell, BellOff, History, Settings2, ChevronDown, ChevronUp,
-  X, Check, Clock, Cpu, MemoryStick, Wifi, RotateCcw
+  X, Check, Clock, Cpu, MemoryStick, Wifi, RotateCcw,
+  Zap, Thermometer, Fan, Search, Trash2, CheckCheck
 } from 'lucide-react';
 import { useAlerts } from '../../context/AlertContext';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+
+function formatDuration(sec) {
+  if (sec == null || isNaN(sec) || sec <= 0) return null;
+  const s = Math.round(sec);
+  if (s < 60) return `${s} วินาที`;
+  const m = Math.floor(s / 60);
+  const remS = s % 60;
+  if (m < 60) return remS > 0 ? `${m} นาที ${remS} วิ` : `${m} นาที`;
+  const h = Math.floor(m / 60);
+  const remM = m % 60;
+  return remM > 0 ? `${h} ชม. ${remM} นาที` : `${h} ชม.`;
+}
 
 // ─── Severity Badge ─────────────────────────────────────────────────────────
 function SeverityBadge({ severity }) {
@@ -99,9 +113,9 @@ function AlertCard({ alert, onAcknowledge, onUnacknowledge, isAcknowledged, canE
 
 // ─── History Card ────────────────────────────────────────────────────────────
 function HistoryCard({ entry }) {
-  const isCritical = entry.severity === 'critical';
   const start = entry.startTime ? new Date(entry.startTime).toLocaleString('th-TH') : '-';
   const end = entry.endTime ? new Date(entry.endTime).toLocaleString('th-TH') : '-';
+  const durationLabel = formatDuration(entry.durationSeconds);
   return (
     <div
       className="panel"
@@ -112,20 +126,33 @@ function HistoryCard({ entry }) {
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 12,
-        opacity: 0.8,
+        opacity: 0.85,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0 }}>
         <CheckCircle2 size={20} color="var(--green)" style={{ flexShrink: 0 }} />
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{entry.name}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+          {entry.description && (
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{entry.description}</div>
+          )}
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
             {entry.deviceName ? `${entry.deviceName} · ` : ''}{entry.instance}
           </div>
         </div>
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <SeverityBadge severity={entry.severity} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+          {durationLabel && (
+            <span style={{
+              fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 9999,
+              background: 'rgba(0,212,255,0.1)', color: 'var(--primary)', border: '1px solid rgba(0,212,255,0.3)'
+            }}>
+              ⏱ {durationLabel}
+            </span>
+          )}
+          <SeverityBadge severity={entry.severity} />
+        </div>
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
           <span title="เริ่มต้น">▶ {start}</span>
         </div>
@@ -147,7 +174,7 @@ function RulesPanel({ rules, onUpdate }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)', marginBottom: 4 }}>
-        ⚙ กำหนด Threshold การแจ้งเตือน
+        ⚙ กำหนด Threshold การแจ้งเตือน (Custom Alert Rules)
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
@@ -158,20 +185,20 @@ function RulesPanel({ rules, onUpdate }) {
               <Cpu size={14} /> CPU Utilization
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={local.cpuEnabled} onChange={e => set('cpuEnabled', e.target.checked)} />
+              <input type="checkbox" checked={local.cpuEnabled !== false} onChange={e => set('cpuEnabled', e.target.checked)} />
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
             </label>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input
               type="range" min={50} max={100} step={5}
-              value={local.cpuThreshold}
-              disabled={!local.cpuEnabled}
+              value={local.cpuThreshold ?? 80}
+              disabled={local.cpuEnabled === false}
               onChange={e => set('cpuThreshold', Number(e.target.value))}
               style={{ flex: 1 }}
             />
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', minWidth: 40, textAlign: 'right' }}>
-              {local.cpuThreshold}%
+              {local.cpuThreshold ?? 80}%
             </span>
           </div>
         </div>
@@ -183,20 +210,20 @@ function RulesPanel({ rules, onUpdate }) {
               <MemoryStick size={14} /> Memory Usage
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={local.memoryEnabled} onChange={e => set('memoryEnabled', e.target.checked)} />
+              <input type="checkbox" checked={local.memoryEnabled !== false} onChange={e => set('memoryEnabled', e.target.checked)} />
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
             </label>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input
               type="range" min={50} max={100} step={5}
-              value={local.memoryThreshold}
-              disabled={!local.memoryEnabled}
+              value={local.memoryThreshold ?? 85}
+              disabled={local.memoryEnabled === false}
               onChange={e => set('memoryThreshold', Number(e.target.value))}
               style={{ flex: 1 }}
             />
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', minWidth: 40, textAlign: 'right' }}>
-              {local.memoryThreshold}%
+              {local.memoryThreshold ?? 85}%
             </span>
           </div>
         </div>
@@ -205,23 +232,23 @@ function RulesPanel({ rules, onUpdate }) {
         <div className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
-              <Wifi size={14} /> Latency
+              <Wifi size={14} /> Latency (ICMP)
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={local.latencyEnabled} onChange={e => set('latencyEnabled', e.target.checked)} />
+              <input type="checkbox" checked={local.latencyEnabled !== false} onChange={e => set('latencyEnabled', e.target.checked)} />
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
             </label>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <input
               type="range" min={10} max={1000} step={10}
-              value={local.latencyThreshold}
-              disabled={!local.latencyEnabled}
+              value={local.latencyThreshold ?? 150}
+              disabled={local.latencyEnabled === false}
               onChange={e => set('latencyThreshold', Number(e.target.value))}
               style={{ flex: 1 }}
             />
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', minWidth: 50, textAlign: 'right' }}>
-              {local.latencyThreshold}ms
+              {local.latencyThreshold ?? 150}ms
             </span>
           </div>
         </div>
@@ -233,7 +260,7 @@ function RulesPanel({ rules, onUpdate }) {
               <AlertTriangle size={14} /> Offline Detection
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={local.offlineEnabled} onChange={e => set('offlineEnabled', e.target.checked)} />
+              <input type="checkbox" checked={local.offlineEnabled !== false} onChange={e => set('offlineEnabled', e.target.checked)} />
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
             </label>
           </div>
@@ -244,7 +271,7 @@ function RulesPanel({ rules, onUpdate }) {
             <input
               type="range" min={0} max={60} step={5}
               value={local.offlineTimeout ?? 10}
-              disabled={!local.offlineEnabled}
+              disabled={local.offlineEnabled === false}
               onChange={e => set('offlineTimeout', Number(e.target.value))}
               style={{ flex: 1 }}
             />
@@ -252,6 +279,74 @@ function RulesPanel({ rules, onUpdate }) {
               {local.offlineTimeout ?? 10} วิ
             </span>
           </div>
+        </div>
+
+        {/* PoE Power Budget */}
+        <div className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#fbbf24' }}>
+              <Zap size={14} /> PoE Power Budget
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={local.poeEnabled !== false} onChange={e => set('poeEnabled', e.target.checked)} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
+            </label>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            แจ้งเตือนเมื่อ Allocated หรือ Actual เกิน
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="range" min={50} max={100} step={5}
+              value={local.poeThreshold ?? 80}
+              disabled={local.poeEnabled === false}
+              onChange={e => set('poeThreshold', Number(e.target.value))}
+              style={{ flex: 1 }}
+            />
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', minWidth: 40, textAlign: 'right' }}>
+              {local.poeThreshold ?? 80}%
+            </span>
+          </div>
+        </div>
+
+        {/* Temperature */}
+        <div className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#fb923c' }}>
+              <Thermometer size={14} /> Temperature (°C)
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={local.tempEnabled !== false} onChange={e => set('tempEnabled', e.target.checked)} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
+            </label>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="range" min={40} max={90} step={5}
+              value={local.tempThreshold ?? 65}
+              disabled={local.tempEnabled === false}
+              onChange={e => set('tempThreshold', Number(e.target.value))}
+              style={{ flex: 1 }}
+            />
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', minWidth: 45, textAlign: 'right' }}>
+              {local.tempThreshold ?? 65}°C
+            </span>
+          </div>
+        </div>
+
+        {/* Hardware PSU / Fan & Reboot */}
+        <div className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#38bdf8' }}>
+            <Fan size={14} /> Hardware & Reboot
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)' }}>
+            <span>PSU & Cooling Fan Fault</span>
+            <input type="checkbox" checked={local.hardwareEnabled !== false} onChange={e => set('hardwareEnabled', e.target.checked)} />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)' }}>
+            <span>Device Reboot (&lt; 10 นาที)</span>
+            <input type="checkbox" checked={local.rebootEnabled !== false} onChange={e => set('rebootEnabled', e.target.checked)} />
+          </label>
         </div>
       </div>
 
@@ -266,23 +361,63 @@ function RulesPanel({ rules, onUpdate }) {
 
 // ─── Main AlertsView ─────────────────────────────────────────────────────────
 export function AlertsView() {
-  const { canEdit } = useAuth();
+  const { canEdit, isAdmin } = useAuth();
+  const { showToast } = useToast();
   const {
     activeAlerts, acknowledgedAlerts, resolvedHistory,
-    alerts, criticalCount,
+    alerts, criticalCount, warningCount,
     filterSeverity, setFilterSeverity,
     pollAlerts,
-    acknowledgeAlert, unacknowledgeAlert,
+    acknowledgeAlert, unacknowledgeAlert, acknowledgeAllAlerts, clearHistory,
     alertRules, updateAlertRules,
     notificationsEnabled, toggleNotifications,
   } = useAlerts();
 
   const [tab, setTab] = useState('active'); // 'active' | 'acknowledged' | 'history'
   const [showRules, setShowRules] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('all');
 
-  const filteredActive = filterSeverity === 'all'
-    ? activeAlerts
-    : activeAlerts.filter(a => a.severity === filterSeverity);
+  const matchesSearchAndType = (item) => {
+    if (filterType !== 'all' && item.type !== filterType) return false;
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.trim().toLowerCase();
+    return (
+      (item.name || item.title || '').toLowerCase().includes(q) ||
+      (item.description || item.message || '').toLowerCase().includes(q) ||
+      (item.deviceName || '').toLowerCase().includes(q) ||
+      (item.instance || item.deviceIp || '').toLowerCase().includes(q)
+    );
+  };
+
+  const filteredActive = useMemo(() => {
+    return activeAlerts.filter(a => {
+      if (filterSeverity !== 'all' && a.severity !== filterSeverity) return false;
+      return matchesSearchAndType(a);
+    });
+  }, [activeAlerts, filterSeverity, filterType, searchQuery]);
+
+  const filteredAcknowledged = useMemo(() => {
+    return acknowledgedAlerts.filter(matchesSearchAndType);
+  }, [acknowledgedAlerts, filterType, searchQuery]);
+
+  const filteredHistory = useMemo(() => {
+    return resolvedHistory.filter(matchesSearchAndType);
+  }, [resolvedHistory, filterType, searchQuery]);
+
+  const handleAckAll = async () => {
+    if (!canEdit || activeAlerts.length === 0) return;
+    await acknowledgeAllAlerts();
+    showToast('success', 'รับทราบทั้งหมดแล้ว', `รับทราบรายการแจ้งเตือนทั้งหมด ${activeAlerts.length} รายการเรียบร้อย`);
+  };
+
+  const handleClearHistory = async () => {
+    if (!isAdmin || resolvedHistory.length === 0) return;
+    if (window.confirm('คุณต้องการล้างประวัติการแจ้งเตือนที่แก้ไขแล้วทั้งหมดหรือไม่?')) {
+      await clearHistory();
+      showToast('info', 'ล้างประวัติเรียบร้อย', 'ล้างรายการประวัติการแจ้งเตือนทั้งหมดแล้ว');
+    }
+  };
 
   const TabBtn = ({ id, label, count }) => (
     <button
@@ -318,12 +453,43 @@ export function AlertsView() {
               Alert Management
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              แจ้งเตือนความผิดปกติ · Custom Rules · History
+              แจ้งเตือนความผิดปกติ · PoE &amp; Hardware Rules · History
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {/* Bulk Actions */}
+          {canEdit && tab === 'active' && activeAlerts.length > 0 && (
+            <button
+              onClick={handleAckAll}
+              style={{
+                padding: '6px 12px', borderRadius: 'var(--radius)', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: 5,
+                background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.35)', color: 'var(--green)',
+              }}
+              title="รับทราบรายการแจ้งเตือนที่ Active ทั้งหมด"
+            >
+              <CheckCheck size={13} />
+              <span>รับทราบทั้งหมด ({activeAlerts.length})</span>
+            </button>
+          )}
+
+          {isAdmin && tab === 'history' && resolvedHistory.length > 0 && (
+            <button
+              onClick={handleClearHistory}
+              style={{
+                padding: '6px 12px', borderRadius: 'var(--radius)', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: 5,
+                background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#f87171',
+              }}
+              title="ล้างประวัติการแจ้งเตือนทั้งหมด"
+            >
+              <Trash2 size={13} />
+              <span>ล้างประวัติ</span>
+            </button>
+          )}
+
           {/* Notification Toggle */}
           <button
             onClick={() => toggleNotifications(!notificationsEnabled)}
@@ -356,7 +522,7 @@ export function AlertsView() {
             {showRules ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
 
-          <button onClick={pollAlerts} className="btn btn-secondary" style={{ fontSize: 12, padding: '6px 10px' }}>
+          <button onClick={pollAlerts} className="btn btn-secondary" style={{ fontSize: 12, padding: '6px 10px' }} title="รีเฟรชรายการแจ้งเตือน">
             <RefreshCw size={13} />
           </button>
         </div>
@@ -365,9 +531,63 @@ export function AlertsView() {
       {/* Rules Panel (collapsible) */}
       {showRules && (
         <div className="panel" style={{ padding: '18px 20px' }}>
-          <RulesPanel rules={alertRules} onUpdate={rules => { updateAlertRules(rules); setShowRules(false); }} />
+          <RulesPanel rules={alertRules} onUpdate={rules => { updateAlertRules(rules); setShowRules(false); showToast('success', 'บันทึก Alert Rules สำเร็จ', 'อัปเดตเกณฑ์การแจ้งเตือนเรียบร้อยแล้ว'); }} />
         </div>
       )}
+
+      {/* Search & Category Filter Bar */}
+      <div className="panel" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: 360 }}>
+          <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="ค้นหาชื่ออุปกรณ์, IP, หรือรายละเอียดการแจ้งเตือน..."
+            className="form-input"
+            style={{ paddingLeft: 32, paddingRight: searchQuery ? 28 : 12, fontSize: 12, height: 34 }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2
+              }}
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {[
+            { id: 'all', label: 'ทุกหมวดหมู่' },
+            { id: 'offline', label: 'Offline' },
+            { id: 'cpu', label: 'CPU' },
+            { id: 'memory', label: 'Memory' },
+            { id: 'latency', label: 'Latency' },
+            { id: 'poe', label: 'PoE Power' },
+            { id: 'hardware', label: 'Hardware/Temp' },
+            { id: 'reboot', label: 'Reboot' },
+          ].map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setFilterType(cat.id)}
+              style={{
+                padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', borderRadius: 9999,
+                border: '1px solid',
+                borderColor: filterType === cat.id ? 'var(--primary)' : 'var(--border)',
+                background: filterType === cat.id ? 'rgba(0,212,255,0.12)' : 'rgba(15,23,42,0.5)',
+                color: filterType === cat.id ? 'var(--primary)' : 'var(--text-muted)',
+                transition: 'all 0.15s',
+              }}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Tabs */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -391,7 +611,7 @@ export function AlertsView() {
                   color: filterSeverity === s ? (s === 'critical' ? 'var(--red)' : s === 'warning' ? 'var(--amber)' : 'var(--primary)') : 'var(--text-muted)',
                 }}
               >
-                {s === 'all' ? `ทั้งหมด (${activeAlerts.length})` : s === 'critical' ? `Critical (${activeAlerts.filter(a => a.severity === 'critical').length})` : `Warning (${activeAlerts.filter(a => a.severity === 'warning').length})`}
+                {s === 'all' ? `ทั้งหมด (${activeAlerts.length})` : s === 'critical' ? `Critical (${criticalCount})` : `Warning (${warningCount})`}
               </button>
             ))}
           </div>
@@ -417,12 +637,12 @@ export function AlertsView() {
 
         {/* Acknowledged Tab */}
         {tab === 'acknowledged' && (
-          acknowledgedAlerts.length === 0 ? (
+          filteredAcknowledged.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '50px 24px', background: 'rgba(15,23,42,0.6)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
               <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>ยังไม่มีรายการที่รับทราบแล้ว</div>
             </div>
           ) : (
-            acknowledgedAlerts.map(a => (
+            filteredAcknowledged.map(a => (
               <AlertCard key={a.id} alert={a} onAcknowledge={acknowledgeAlert} onUnacknowledge={unacknowledgeAlert} isAcknowledged={true} canEdit={canEdit} />
             ))
           )
@@ -430,13 +650,13 @@ export function AlertsView() {
 
         {/* History Tab */}
         {tab === 'history' && (
-          resolvedHistory.length === 0 ? (
+          filteredHistory.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '50px 24px', background: 'rgba(15,23,42,0.6)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
               <History size={36} color="var(--text-muted)" style={{ margin: '0 auto 12px', display: 'block' }} />
               <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>ยังไม่มีประวัติการแจ้งเตือน</div>
             </div>
           ) : (
-            resolvedHistory.map((entry, i) => (
+            filteredHistory.map((entry, i) => (
               <HistoryCard key={`${entry.id}-${i}`} entry={entry} />
             ))
           )

@@ -136,11 +136,17 @@ export const DEFAULT_ALERT_RULES = {
   cpuThreshold: 80,       // % — Alert when CPU > this
   memoryThreshold: 85,    // % — Alert when Memory > this
   latencyThreshold: 150,  // ms — Alert when latency > this
+  poeThreshold: 80,       // % — Alert when PoE Allocated or Actual >= this
+  tempThreshold: 65,      // °C — Alert when Temperature >= this
   offlineEnabled: true,   // Alert when device goes offline
   offlineTimeout: 10,     // seconds - Delay before triggering offline alert
   cpuEnabled: true,
   memoryEnabled: true,
   latencyEnabled: true,
+  poeEnabled: true,
+  tempEnabled: true,
+  hardwareEnabled: true,  // Alert on PSU / Fan faults
+  rebootEnabled: true,    // Alert on recent reboot (< 10 mins)
 };
 
 export async function loadAlertRules() {

@@ -43,7 +43,15 @@ function runSetup() {
   const promTarget = process.env.PROMETHEUS_CONFIG_TARGET || '/etc/prometheus/prometheus.yml';
 
   if (promSource) {
-    const newPromConfig = fs.readFileSync(promSource, 'utf8');
+    let newPromConfig = fs.readFileSync(promSource, 'utf8');
+
+    // Normalize exporter endpoints for Native Host execution (unless running inside full Docker network)
+    const isDockerContainer = fs.existsSync('/.dockerenv');
+    if (!isDockerContainer) {
+      newPromConfig = newPromConfig
+        .replace(/replacement:\s*blackbox-exporter:9115/g, 'replacement: 127.0.0.1:9115')
+        .replace(/replacement:\s*snmp-exporter:9116/g, 'replacement: 127.0.0.1:9116');
+    }
 
     // Backup existing configuration if present
     if (fs.existsSync(promTarget)) {
@@ -52,10 +60,12 @@ function runSetup() {
       log(`Backed up current prometheus.yml to ${backupPath}`);
     }
 
-    // Verify syntax with promtool if available
+    // Write candidate file to verify syntax with promtool if available
+    const tmpValidateFile = `/tmp/prometheus_validate_${Date.now()}.yml`;
     let isValid = true;
     try {
-      execSync(`promtool check config "${promSource}"`, { stdio: 'pipe' });
+      fs.writeFileSync(tmpValidateFile, newPromConfig, 'utf8');
+      execSync(`promtool check config "${tmpValidateFile}"`, { stdio: 'pipe' });
       log('Verified prometheus.yml syntax with promtool (SUCCESS)');
     } catch (err) {
       // If promtool exists but failed syntax check
@@ -65,6 +75,8 @@ function runSetup() {
       } else {
         log('promtool not installed, proceeding with direct deployment.');
       }
+    } finally {
+      try { if (fs.existsSync(tmpValidateFile)) fs.unlinkSync(tmpValidateFile); } catch {}
     }
 
     if (isValid) {

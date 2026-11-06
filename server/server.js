@@ -773,6 +773,7 @@ function restartBackendPollers() {
 /// --- Unified Alert Engine & LINE Integration (Backend Source of Truth) ---
 const ALERT_HISTORY_FILE = path.join(DATA_DIR, 'alert_history.json');
 const ALERT_ACK_FILE = path.join(DATA_DIR, 'alert_ack.json');
+const ALERT_NOTIFIED_FILE = path.join(DATA_DIR, 'alert_notified.json');
 
 const alertSubscribers = new Set();
 // Periodic SSE keepalive comment (: keepalive\n\n) every 15s to prevent timeouts
@@ -792,8 +793,26 @@ let activeAlertsMap = new Map(); // id -> normalized alert
 let acknowledgedAlertIds = new Set(); // Set of alert IDs
 let backendAlertHistory = []; // Array of resolved alert records
 let notifiedAlertIds = new Set(); // Set of firing alert IDs that have already notified LINE
+let offlinePendingMap = new Map(); // ip -> timestamp when first seen offline (anti-flapping grace period)
+let isPollingAlerts = false; // Mutex to prevent overlapping pollAlerts executions
 let latestAlerts = []; // Array of normalized alerts for SSE & GET
 let latestIcmpStatus = {};
+
+function formatThaiTime(ts = Date.now()) {
+  try {
+    return new Date(ts).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour12: false });
+  } catch {
+    return new Date(ts).toLocaleTimeString('th-TH');
+  }
+}
+
+function formatThaiDateTime(ts = Date.now()) {
+  try {
+    return new Date(ts).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', hour12: false });
+  } catch {
+    return new Date(ts).toLocaleString('th-TH');
+  }
+}
 
 function loadAlertState() {
   try {
@@ -821,6 +840,19 @@ function loadAlertState() {
   } catch (err) {
     console.warn('[AlertEngine] Could not load alert_history.json:', err.message);
   }
+
+  try {
+    if (fs.existsSync(ALERT_NOTIFIED_FILE)) {
+      const raw = fs.readFileSync(ALERT_NOTIFIED_FILE, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        notifiedAlertIds = new Set(parsed);
+        console.log(`[AlertEngine] Loaded ${notifiedAlertIds.size} notified alert IDs.`);
+      }
+    }
+  } catch (err) {
+    console.warn('[AlertEngine] Could not load alert_notified.json:', err.message);
+  }
 }
 
 function saveAcknowledgedAlerts() {
@@ -840,6 +872,16 @@ function saveAlertHistory() {
     fs.renameSync(tmp, ALERT_HISTORY_FILE);
   } catch (err) {
     console.warn('[AlertEngine] Could not save alert_history.json:', err.message);
+  }
+}
+
+function saveNotifiedAlerts() {
+  try {
+    const tmp = `${ALERT_NOTIFIED_FILE}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(Array.from(notifiedAlertIds)), 'utf8');
+    fs.renameSync(tmp, ALERT_NOTIFIED_FILE);
+  } catch (err) {
+    console.warn('[AlertEngine] Could not save alert_notified.json:', err.message);
   }
 }
 
@@ -875,55 +917,38 @@ function normalizeAlert(raw) {
     name: alertName,
     description: raw.message || raw.description || 'Threshold exceeded',
     instance: cleanIp,
-    time: new Date(startsAt).toLocaleTimeString('th-TH')
+    time: formatThaiTime(startsAt)
   };
 }
 
-async function sendLineNotification(token, targetId, alert, isRecovery = false) {
-  if (!token || !targetId) return;
-  const icon = isRecovery 
-    ? '🟢' 
-    : (alert.severity === 'critical' ? '🔴' : (alert.severity === 'warning' ? '🟡' : '🔵'));
-  const org = (readDb().settings?.orgName || 'Enterprise Network Monitoring Platform').trim();
-  const message = `${icon} [${org}]: ${alert.title || alert.name}\n📍 Device: ${alert.deviceName ? `${alert.deviceName} (${alert.deviceIp || alert.instance})` : (alert.deviceIp || alert.instance)}\n📝 Detail: ${alert.message || alert.description}\n🕒 Time: ${new Date().toLocaleTimeString('th-TH')}`;
-
-  try {
-    await fetch('https://api.line.me/v2/bot/message/push', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        to: targetId,
-        messages: [{ type: 'text', text: message }]
-      }),
-      signal: AbortSignal.timeout(6000)
-    });
-  } catch (err) {
-    console.error('[AlertEngine] Failed to send LINE Push Message:', err.message);
-  }
-}
-
 async function pollAlerts() {
+    if (isPollingAlerts) return;
+    isPollingAlerts = true;
     try {
       const db = readDb();
       const promUrl = (db.settings?.prometheusUrl || 'http://127.0.0.1:9090').replace(/\/+$/, '');
-      const lineToken = db.settings?.lineChannelToken;
-      const lineTargetId = db.settings?.lineTargetId;
-      const alertRules = db.alert_rules || {
+      const alertRules = {
         cpuThreshold: 80,
         memoryThreshold: 85,
         latencyThreshold: 150,
+        poeThreshold: 80,
+        tempThreshold: 65,
+        offlineTimeout: 10,
         offlineEnabled: true,
         cpuEnabled: true,
         memoryEnabled: true,
         latencyEnabled: true,
+        poeEnabled: true,
+        tempEnabled: true,
+        hardwareEnabled: true,
+        rebootEnabled: true,
+        ...(db.alert_rules || {})
       };
 
-      const [resAlerts, probeRes, upRes] = await Promise.allSettled([
+      const [resAlerts, probeRes, latencyRes, upRes] = await Promise.allSettled([
         fetch(promUrl + '/api/v1/query?query=' + encodeURIComponent('ALERTS{alertstate="firing"}'), { signal: AbortSignal.timeout(5000) }).then(r => r.json()),
         fetch(promUrl + '/api/v1/query?query=' + encodeURIComponent('probe_success'), { signal: AbortSignal.timeout(5000) }).then(r => r.json()),
+        fetch(promUrl + '/api/v1/query?query=' + encodeURIComponent('probe_duration_seconds'), { signal: AbortSignal.timeout(5000) }).then(r => r.json()),
         fetch(promUrl + '/api/v1/query?query=' + encodeURIComponent('up'), { signal: AbortSignal.timeout(5000) }).then(r => r.json())
       ]);
 
@@ -948,6 +973,8 @@ async function pollAlerts() {
           if (lowerName.includes('cpu')) type = 'cpu';
           else if (lowerName.includes('mem')) type = 'memory';
           else if (lowerName.includes('latency') || lowerName.includes('ping')) type = 'latency';
+          else if (lowerName.includes('poe') || lowerName.includes('power')) type = 'poe';
+          else if (lowerName.includes('temp') || lowerName.includes('fan') || lowerName.includes('psu')) type = 'hardware';
           else if (lowerName.includes('interface') || lowerName.includes('link')) type = 'interface';
 
           const existing = activeAlertsMap.get(id);
@@ -968,8 +995,9 @@ async function pollAlerts() {
         });
       }
 
-      // 2. Map ICMP Probe Results (blackbox)
+      // 2. Map ICMP Probe Results & Latency (blackbox)
       const icmpStatus = {};
+      const icmpLatencyMs = {};
       if (probeRes.status === 'fulfilled' && probeRes.value?.status === 'success' && Array.isArray(probeRes.value?.data?.result)) {
         probeRes.value.data.result.forEach(r => {
           const inst = (r.metric?.instance || r.metric?.target || '').replace(/:\d+$/, '').trim();
@@ -982,38 +1010,96 @@ async function pollAlerts() {
         });
       }
 
-      // 3. Evaluate Offline State for every device in inventory (Backend Source of Truth!)
-      if (Array.isArray(db.devices) && alertRules.offlineEnabled !== false) {
-        for (const d of db.devices) {
-          if (!d || !d.ip) continue;
-          const ip = d.ip.trim();
-          if (db.deletedIps?.includes(ip)) continue;
-          if (d.enabled === false || d.disabled === true || d.status === 'disabled') continue;
+      if (latencyRes.status === 'fulfilled' && latencyRes.value?.status === 'success' && Array.isArray(latencyRes.value?.data?.result)) {
+        latencyRes.value.data.result.forEach(r => {
+          const inst = (r.metric?.instance || r.metric?.target || '').replace(/:\d+$/, '').trim();
+          const sec = r.value ? parseFloat(r.value[1]) : NaN;
+          const job = r.metric?.job || '';
+          const module = r.metric?.module || '';
+          if ((job.startsWith('blackbox') || module === 'icmp') && inst && !isNaN(sec) && sec > 0) {
+            icmpLatencyMs[inst] = sec * 1000;
+          }
+        });
+      }
 
-          let isAlive = icmpStatus[ip];
-          if (isAlive === undefined) {
+      // 2.5 Parallel Fallback ICMP Probe for active devices missing from Prometheus Blackbox
+      const enabledDevices = Array.isArray(db.devices)
+        ? db.devices.filter(d => d && d.ip && !db.deletedIps?.includes(d.ip.trim()) && d.enabled !== false && d.disabled !== true && d.status !== 'disabled')
+        : [];
+
+      const missingPingDevices = enabledDevices.filter(d => icmpStatus[d.ip.trim()] === undefined);
+      if (missingPingDevices.length > 0) {
+        const PING_CONCURRENCY = 8;
+        for (let i = 0; i < missingPingDevices.length; i += PING_CONCURRENCY) {
+          const batch = missingPingDevices.slice(i, i + PING_CONCURRENCY);
+          await Promise.all(batch.map(async (d) => {
+            const ip = d.ip.trim();
             try {
               const pRes = await ping.promise.probe(ip, { timeout: 2 });
-              isAlive = pRes && pRes.alive === true;
-              icmpStatus[ip] = isAlive;
+              const alive = Boolean(pRes && pRes.alive === true);
+              icmpStatus[ip] = alive;
+              if (alive && pRes.time !== undefined && pRes.time !== 'unknown') {
+                const rtt = parseFloat(pRes.time);
+                if (!isNaN(rtt) && rtt >= 0) icmpLatencyMs[ip] = rtt;
+              }
             } catch {
-              isAlive = false;
+              icmpStatus[ip] = false;
             }
-          }
+          }));
+        }
+      }
 
-          if (isAlive === false) {
+      // 3. Evaluate Offline & High Latency States for every active device
+      const offlineDelayMs = Math.max(0, Number(alertRules.offlineTimeout ?? 0)) * 1000;
+      for (const d of enabledDevices) {
+        const ip = d.ip.trim();
+        const isAlive = icmpStatus[ip];
+
+        if (isAlive === false) {
+          if (alertRules.offlineEnabled !== false) {
             const id = `offline-${ip}`;
             const existing = activeAlertsMap.get(id);
-            const startsAt = existing ? existing.startsAt : Date.now();
+            const nowMs = Date.now();
+            if (!offlinePendingMap.has(ip)) {
+              offlinePendingMap.set(ip, existing ? existing.startsAt : nowMs);
+            }
+            const firstOfflineAt = offlinePendingMap.get(ip);
+            // Fire immediately if already active, if offlineTimeout is 0, or once grace period has elapsed
+            if (existing || offlineDelayMs === 0 || (nowMs - firstOfflineAt) >= offlineDelayMs) {
+              const startsAt = existing ? existing.startsAt : firstOfflineAt;
+              newAlertsMap.set(id, normalizeAlert({
+                id,
+                type: 'offline',
+                severity: 'critical',
+                deviceIp: ip,
+                deviceName: d.name || ip,
+                title: 'Device Offline',
+                message: `The device is not responding to ICMP ping requests (Ping failed).`,
+                startsAt,
+                status: 'firing',
+                acknowledged: acknowledgedAlertIds.has(id),
+              }));
+            }
+          }
+        } else {
+          // Device is alive: clear offline pending tracker
+          offlinePendingMap.delete(ip);
 
+          // Check High Latency threshold for online devices
+          const latMs = icmpLatencyMs[ip];
+          const latThreshold = Number(alertRules.latencyThreshold) || 150;
+          if (alertRules.latencyEnabled !== false && latMs !== undefined && !isNaN(latMs) && latMs > latThreshold) {
+            const id = `latency-${ip}`;
+            const existing = activeAlertsMap.get(id);
+            const startsAt = existing ? existing.startsAt : Date.now();
             newAlertsMap.set(id, normalizeAlert({
               id,
-              type: 'offline',
-              severity: 'critical',
+              type: 'latency',
+              severity: latMs > Math.max(latThreshold * 2, 300) ? 'critical' : 'warning',
               deviceIp: ip,
               deviceName: d.name || ip,
-              title: 'Device Offline',
-              message: `The device is not responding to ICMP ping requests (Ping failed).`,
+              title: 'High Network Latency',
+              message: `ICMP response time reached ${Math.round(latMs)} ms (Threshold: ${latThreshold} ms)`,
               startsAt,
               status: 'firing',
               acknowledged: acknowledgedAlertIds.has(id),
@@ -1022,53 +1108,156 @@ async function pollAlerts() {
         }
       }
 
-      // 4. Evaluate Hardware Telemetry Thresholds from Backend SNMP Poller
-      if (Array.isArray(db.devices)) {
-        for (const d of db.devices) {
-          if (!d || !d.ip) continue;
-          const ip = d.ip.trim();
-          if (icmpStatus[ip] === false) continue; // Don't trigger CPU/Mem if offline
+      // 4. Evaluate Hardware & PoE Telemetry Thresholds from Backend SNMP Poller
+      for (const d of enabledDevices) {
+        const ip = d.ip.trim();
+        if (icmpStatus[ip] === false) continue; // Skip telemetry alerts if device is offline
 
-          const perf = devicePerfCache[ip];
-          if (!perf) continue;
+        const perf = devicePerfCache[ip];
+        if (!perf) continue;
 
-          // CPU threshold
-          if (alertRules.cpuEnabled && perf.cpu != null && perf.cpu > (alertRules.cpuThreshold || 80)) {
-            const id = `cpu-${ip}`;
+        // 4.1 CPU threshold
+        if (alertRules.cpuEnabled !== false && perf.cpu != null && perf.cpu > (alertRules.cpuThreshold || 80)) {
+          const id = `cpu-${ip}`;
+          const existing = activeAlertsMap.get(id);
+          const startsAt = existing ? existing.startsAt : Date.now();
+          newAlertsMap.set(id, normalizeAlert({
+            id,
+            type: 'cpu',
+            severity: perf.cpu > 90 ? 'critical' : 'warning',
+            deviceIp: ip,
+            deviceName: d.name || ip,
+            title: 'High CPU Utilization',
+            message: `CPU usage reached ${perf.cpu.toFixed(1)}% (Threshold: ${alertRules.cpuThreshold || 80}%)`,
+            startsAt,
+            status: 'firing',
+            acknowledged: acknowledgedAlertIds.has(id),
+          }));
+        }
+
+        // 4.2 Memory threshold
+        if (alertRules.memoryEnabled !== false && perf.memory != null && perf.memory > (alertRules.memoryThreshold || 85)) {
+          const id = `mem-${ip}`;
+          const existing = activeAlertsMap.get(id);
+          const startsAt = existing ? existing.startsAt : Date.now();
+          newAlertsMap.set(id, normalizeAlert({
+            id,
+            type: 'memory',
+            severity: perf.memory > 95 ? 'critical' : 'warning',
+            deviceIp: ip,
+            deviceName: d.name || ip,
+            title: 'High Memory Usage',
+            message: `Memory usage reached ${perf.memory.toFixed(1)}% (Threshold: ${alertRules.memoryThreshold || 85}%)`,
+            startsAt,
+            status: 'firing',
+            acknowledged: acknowledgedAlertIds.has(id),
+          }));
+        }
+
+        // 4.3 PoE Power Utilization (Allocated Power % & Actual Consumption %)
+        if (alertRules.poeEnabled !== false && perf.poe && perf.poe.budgetWatts > 0) {
+          const poeThreshold = Number(alertRules.poeThreshold) || 80;
+          const allocPct = perf.poe.allocatedPercent ?? Math.round(((perf.poe.allocatedWatts ?? 0) / perf.poe.budgetWatts) * 100);
+          const actualPct = perf.poe.actualPercent ?? perf.poe.percent ?? Math.round(((perf.poe.actualWatts ?? perf.poe.usedWatts ?? 0) / perf.poe.budgetWatts) * 100);
+          const maxPoePct = Math.max(allocPct || 0, actualPct || 0);
+
+          if (maxPoePct >= poeThreshold) {
+            const id = `poe-${ip}`;
             const existing = activeAlertsMap.get(id);
             const startsAt = existing ? existing.startsAt : Date.now();
             newAlertsMap.set(id, normalizeAlert({
               id,
-              type: 'cpu',
-              severity: perf.cpu > 90 ? 'critical' : 'warning',
+              type: 'poe',
+              severity: maxPoePct >= 90 ? 'critical' : 'warning',
               deviceIp: ip,
               deviceName: d.name || ip,
-              title: 'High CPU Utilization',
-              message: `CPU usage reached ${perf.cpu.toFixed(1)}% (Threshold: ${alertRules.cpuThreshold || 80}%)`,
+              title: 'High PoE Power Utilization',
+              message: `PoE Allocated: ${perf.poe.allocatedWatts ?? 0}W (${allocPct}%) · Actual: ${perf.poe.actualWatts ?? perf.poe.usedWatts ?? 0}W (${actualPct}%) / Budget: ${perf.poe.budgetWatts}W (Threshold: ${poeThreshold}%)`,
+              startsAt,
+              status: 'firing',
+              acknowledged: acknowledgedAlertIds.has(id),
+            }));
+          }
+        }
+
+        // 4.4 Chassis Temperature (°C)
+        if (alertRules.tempEnabled !== false && perf.temp != null && !isNaN(perf.temp)) {
+          const tempThreshold = Number(alertRules.tempThreshold) || 65;
+          if (perf.temp >= tempThreshold) {
+            const id = `temp-${ip}`;
+            const existing = activeAlertsMap.get(id);
+            const startsAt = existing ? existing.startsAt : Date.now();
+            newAlertsMap.set(id, normalizeAlert({
+              id,
+              type: 'hardware',
+              severity: perf.temp >= (tempThreshold + 10) ? 'critical' : 'warning',
+              deviceIp: ip,
+              deviceName: d.name || ip,
+              title: 'High Device Temperature',
+              message: `Chassis temperature reached ${perf.temp}°C (Threshold: ${tempThreshold}°C)`,
+              startsAt,
+              status: 'firing',
+              acknowledged: acknowledgedAlertIds.has(id),
+            }));
+          }
+        }
+
+        // 4.5 Hardware PSU & Cooling Fan Status
+        if (alertRules.hardwareEnabled !== false) {
+          if (perf.psu && (perf.psu.status === 'critical' || perf.psu.status === 'warning')) {
+            const id = `psu-${ip}`;
+            const existing = activeAlertsMap.get(id);
+            const startsAt = existing ? existing.startsAt : Date.now();
+            newAlertsMap.set(id, normalizeAlert({
+              id,
+              type: 'hardware',
+              severity: perf.psu.status === 'critical' ? 'critical' : 'warning',
+              deviceIp: ip,
+              deviceName: d.name || ip,
+              title: 'Power Supply (PSU) Anomaly',
+              message: `Power Supply status reported as: ${perf.psu.label || perf.psu.status}`,
               startsAt,
               status: 'firing',
               acknowledged: acknowledgedAlertIds.has(id),
             }));
           }
 
-          // Memory threshold
-          if (alertRules.memoryEnabled && perf.memory != null && perf.memory > (alertRules.memoryThreshold || 85)) {
-            const id = `mem-${ip}`;
+          if (perf.fans && (perf.fans.status === 'critical' || perf.fans.status === 'warning')) {
+            const id = `fan-${ip}`;
             const existing = activeAlertsMap.get(id);
             const startsAt = existing ? existing.startsAt : Date.now();
             newAlertsMap.set(id, normalizeAlert({
               id,
-              type: 'memory',
-              severity: perf.memory > 95 ? 'critical' : 'warning',
+              type: 'hardware',
+              severity: perf.fans.status === 'critical' ? 'critical' : 'warning',
               deviceIp: ip,
               deviceName: d.name || ip,
-              title: 'High Memory Usage',
-              message: `Memory usage reached ${perf.memory.toFixed(1)}% (Threshold: ${alertRules.memoryThreshold || 85}%)`,
+              title: 'Cooling Fan Anomaly',
+              message: `Cooling Fan status reported as: ${perf.fans.label || perf.fans.status}`,
               startsAt,
               status: 'firing',
               acknowledged: acknowledgedAlertIds.has(id),
             }));
           }
+        }
+
+        // 4.6 Recent Device Reboot Detection (< 10 mins uptime)
+        if (alertRules.rebootEnabled !== false && perf.rebootRecent === true) {
+          const id = `reboot-${ip}`;
+          const existing = activeAlertsMap.get(id);
+          const startsAt = existing ? existing.startsAt : Date.now();
+          newAlertsMap.set(id, normalizeAlert({
+            id,
+            type: 'reboot',
+            severity: 'warning',
+            deviceIp: ip,
+            deviceName: d.name || ip,
+            title: 'Device Reboot Detected',
+            message: `Device recently rebooted (System Uptime < 10 minutes).`,
+            startsAt,
+            status: 'firing',
+            acknowledged: acknowledgedAlertIds.has(id),
+          }));
         }
       }
 
@@ -1084,7 +1273,7 @@ async function pollAlerts() {
             endTime: now,
             resolvedAt: now,
             startTime: oldAlert.startsAt,
-            durationSeconds: Math.round((now - oldAlert.startsAt) / 1000)
+            durationSeconds: Math.max(1, Math.round((now - oldAlert.startsAt) / 1000))
           };
           backendAlertHistory.push(resolvedEntry);
           historyChanged = true;
@@ -1096,9 +1285,6 @@ async function pollAlerts() {
 
           if (notifiedAlertIds.has(id)) {
             notifiedAlertIds.delete(id);
-            if (lineToken && lineTargetId) {
-              sendLineNotification(lineToken, lineTargetId, oldAlert, true);
-            }
           }
 
           console.log(`[AlertEngine] Alert resolved: ${id} (${oldAlert.title} on ${oldAlert.deviceIp})`);
@@ -1109,23 +1295,14 @@ async function pollAlerts() {
         saveAlertHistory();
       }
 
-      // 6. Send LINE Notification for NEW Firing Alerts (Transition: Resolved/None -> Firing)
-      if (lineToken && lineTargetId) {
-        for (const [id, alert] of newAlertsMap.entries()) {
-          if (!notifiedAlertIds.has(id)) {
-            sendLineNotification(lineToken, lineTargetId, alert, false);
-            notifiedAlertIds.add(id);
-            console.log(`[AlertEngine] Sent LINE alert notification for ${id}`);
-          }
-        }
-      }
-
-      // 7. Update activeAlertsMap & Broadcast to SSE
+      // 6. Update activeAlertsMap & Broadcast to SSE
       activeAlertsMap = newAlertsMap;
       latestIcmpStatus = icmpStatus;
       broadcastActiveAlerts();
     } catch (e) {
       console.warn('[AlertEngine] Poller error:', e.message);
+    } finally {
+      isPollingAlerts = false;
     }
 }
 
@@ -4045,6 +4222,9 @@ const server = http.createServer(async (req, res) => {
           await updateDb(db => {
             db[key] = value;
           });
+          if (key === 'alert_rules') {
+            pollAlerts();
+          }
           return sendJson(res, 200, { ok: true, message: `Saved ${key} to server` });
         }
       }
