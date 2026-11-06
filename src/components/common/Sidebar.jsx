@@ -210,9 +210,11 @@ export function Sidebar({ activeTab, setActiveTab, onOpenAddDevice, isMobileMenu
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
                   {user.isShared ? 'Public Viewer' : (user.name || user.login)}
                 </div>
-                <div style={{ fontSize: 10, color: user.isShared ? '#38bdf8' : (user.isEmergency ? '#fbbf24' : 'var(--cyan)'), fontWeight: 600 }}>
-                  {user.isShared ? '👁️ ดูอย่างเดียว (Public)' : (user.isEmergency ? '🚨 Admin (Break-Glass)' : `${user.role} (Grafana SSO)`)}
-                </div>
+                {!user.isShared && (
+                  <div style={{ fontSize: 10, color: user.isEmergency ? '#fbbf24' : 'var(--cyan)', fontWeight: 600 }}>
+                    {user.isEmergency ? '🚨 Admin (Break-Glass)' : `${user.role} (Grafana SSO)`}
+                  </div>
+                )}
               </div>
             </div>
             <button

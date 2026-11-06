@@ -19,13 +19,13 @@
     "defaultDiscoveryCidr": "192.168.1.0/24",
     "emergencyUsername": "emergency",
     "isConfigured": false,
-    "emergencyPasswordHash": "b2e84d0d01759575ec8ee1bd1da094723a6fe47d1e73c2e475179f2349ae33cd202aa07f375fd73d9846dcca404aede9d99ef3d3c0c4dc4e21cce74069635c59",
-    "emergencyPasswordSalt": "0abebfefa79f0fe88f99fdde5c761ed2",
+    "emergencyPasswordHash": "2b22c562351f9175e6c25a25b1bf3992d4bcecb46b7bb7bc511b232cde179d797a5a93a92290913c8ebc8ca13b608b76459d9743eee076f814ce6524fe768471",
+    "emergencyPasswordSalt": "62bb0dc34b1bb297b3f9c8095cc8482d",
     "emergencyPassword": "emergency@netmon"
   },
   "topologyPositions": {},
   "deletedIps": [],
-  "updatedAt": "2026-11-04T02:29:40.092Z",
+  "updatedAt": "2026-11-06T10:00:53.304Z",
   "topology": {
     "nodes": [],
     "edges": [],

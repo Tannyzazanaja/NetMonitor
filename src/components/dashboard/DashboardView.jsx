@@ -588,26 +588,11 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
           <div>
             <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-heading)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>NOC Wallboard & Telemetry Display</span>
-              {user?.isShared && (
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: '#38bdf8',
-                    background: 'rgba(56, 189, 248, 0.15)',
-                    border: '1px solid rgba(56, 189, 248, 0.35)',
-                    padding: '2px 8px',
-                    borderRadius: 999,
-                  }}
-                >
-                  👁️ โหมดดูอย่างเดียว (Public Read-Only)
-                </span>
-              )}
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {user?.isShared
-                ? 'หน้าจอแสดงผลกลาง • อัปเดตข้อมูลแบบเรียลไทม์โดยไม่ต้องล็อกอิน (ระบบป้องกันการแก้ไขข้อมูลทุกประเภท)'
-                : 'ศูนย์ควบคุมและเฝ้าระวังระบบเครือข่าย — สามารถคัดลอกลิงก์เพื่อนำไปเปิดบนจอ TV หรือเครื่องอื่นได้ทันทีโดยไม่ต้องล็อกอิน'}
+                ? 'หน้าจอแสดงผลกลาง • อัปเดตข้อมูลสถานะเครือข่ายแบบเรียลไทม์'
+                : 'ศูนย์ควบคุมและเฝ้าระวังระบบเครือข่ายแบบเรียลไทม์'}
             </div>
           </div>
         </div>
@@ -627,10 +612,10 @@ export function DashboardView({ onSelectTab, onOpenAddDevice, onOpenEditDevice }
               color: copiedShareLink ? 'var(--green)' : 'var(--primary)',
               transition: 'all 0.2s ease',
             }}
-            title="คัดลอกลิงก์แดชบอร์ด สามารถเปิดที่เครื่องไหนก็ได้โดยไม่ต้องเข้าสู่ระบบ (ดูได้อย่างเดียว)"
+            title="คัดลอกลิงก์แดชบอร์ดเพื่อเปิดแสดงผลบนจออื่นได้ทันที"
           >
             {copiedShareLink ? <Check size={14} /> : <Share2 size={14} />}
-            <span>{copiedShareLink ? 'คัดลอกลิงก์แล้ว!' : '🔗 คัดลอกลิงก์แดชบอร์ด (ดูอย่างเดียว)'}</span>
+            <span>{copiedShareLink ? 'คัดลอกลิงก์แล้ว!' : '🔗 คัดลอกลิงก์แดชบอร์ด'}</span>
           </button>
         </div>
       </div>

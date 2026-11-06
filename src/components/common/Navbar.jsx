@@ -181,22 +181,24 @@ export function Navbar({ onMenuClick, isSidebarCollapsed, isPublicShared = false
               >
                 {user.isShared ? 'Public Viewer' : (user.name || user.login)}
               </div>
-              <div
-                className="navbar-user-role"
-                style={{
-                  fontSize: 10,
-                  color: user.isShared ? '#38bdf8' : (user.isEmergency ? '#fbbf24' : (user.role === 'Admin' ? 'var(--cyan)' : '#fb923c')),
-                  fontWeight: 600,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <span className="navbar-role-full">
-                  {user.isShared ? '👁️ ดูอย่างเดียว (Public Share)' : (user.isEmergency ? '🚨 Admin (Break-Glass)' : `${user.role} (Grafana SSO)`)}
-                </span>
-                <span className="navbar-role-short">
-                  {user.isShared ? '👁️ ดูอย่างเดียว' : (user.isEmergency ? '🚨 Break-Glass' : user.role)}
-                </span>
-              </div>
+              {!user.isShared && (
+                <div
+                  className="navbar-user-role"
+                  style={{
+                    fontSize: 10,
+                    color: user.isEmergency ? '#fbbf24' : (user.role === 'Admin' ? 'var(--cyan)' : '#fb923c'),
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span className="navbar-role-full">
+                    {user.isEmergency ? '🚨 Admin (Break-Glass)' : `${user.role} (Grafana SSO)`}
+                  </span>
+                  <span className="navbar-role-short">
+                    {user.isEmergency ? '🚨 Break-Glass' : user.role}
+                  </span>
+                </div>
+              )}
             </div>
             <button
               onClick={logout}
