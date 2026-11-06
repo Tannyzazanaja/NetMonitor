@@ -27,6 +27,7 @@ function MainApp() {
   const { canEdit, user } = useAuth();
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [settingsInitialCategory, setSettingsInitialCategory] = useState('all');
   const [isAddDeviceOpen, setIsAddDeviceOpen] = useState(false);
   const [editingDeviceIp, setEditingDeviceIp] = useState(null);
   const [prefillDevice, setPrefillDevice] = useState(null);
@@ -155,11 +156,16 @@ function MainApp() {
           )}
 
           {activeTab === 'alerts' && (
-            <AlertsView />
+            <AlertsView
+              onOpenAlertSettings={() => {
+                setSettingsInitialCategory('alerts');
+                setActiveTab('settings');
+              }}
+            />
           )}
 
           {activeTab === 'settings' && !user?.isShared && (
-            <SettingsView />
+            <SettingsView initialCategory={settingsInitialCategory} />
           )}
         </main>
       </div>

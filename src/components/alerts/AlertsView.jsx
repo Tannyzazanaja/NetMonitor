@@ -164,216 +164,8 @@ function HistoryCard({ entry }) {
   );
 }
 
-// ─── Custom Rules Panel (Admin Only) ─────────────────────────────────────────
-function RulesPanel({ rules, onUpdate, isAdmin }) {
-  const [local, setLocal] = useState({ ...rules });
-
-  const handleSave = () => {
-    if (!isAdmin) return;
-    onUpdate(local);
-  };
-  const set = (key, val) => {
-    if (!isAdmin) return;
-    setLocal(prev => ({ ...prev, [key]: val }));
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
-          ⚙ กำหนด Threshold การแจ้งเตือน (Custom Alert Rules)
-        </div>
-        <span style={{ fontSize: 11, color: isAdmin ? 'var(--green)' : 'var(--amber)', fontWeight: 600 }}>
-          {isAdmin ? '🛡️ สิทธิ์ผู้ดูแลระบบ (Admin Editable)' : '🔒 เฉพาะผู้ดูแลระบบ (Admin Only - Read Only)'}
-        </span>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, opacity: isAdmin ? 1 : 0.65 }}>
-        {/* CPU */}
-        <div className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--cyan)' }}>
-              <Cpu size={14} /> CPU Utilization
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: isAdmin ? 'pointer' : 'not-allowed' }}>
-              <input type="checkbox" disabled={!isAdmin} checked={local.cpuEnabled !== false} onChange={e => set('cpuEnabled', e.target.checked)} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
-            </label>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              type="range" min={50} max={100} step={5}
-              value={local.cpuThreshold ?? 80}
-              disabled={!isAdmin || local.cpuEnabled === false}
-              onChange={e => set('cpuThreshold', Number(e.target.value))}
-              style={{ flex: 1 }}
-            />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', minWidth: 40, textAlign: 'right' }}>
-              {local.cpuThreshold ?? 80}%
-            </span>
-          </div>
-        </div>
-
-        {/* Memory */}
-        <div className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--purple)' }}>
-              <MemoryStick size={14} /> Memory Usage
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: isAdmin ? 'pointer' : 'not-allowed' }}>
-              <input type="checkbox" disabled={!isAdmin} checked={local.memoryEnabled !== false} onChange={e => set('memoryEnabled', e.target.checked)} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
-            </label>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              type="range" min={50} max={100} step={5}
-              value={local.memoryThreshold ?? 85}
-              disabled={!isAdmin || local.memoryEnabled === false}
-              onChange={e => set('memoryThreshold', Number(e.target.value))}
-              style={{ flex: 1 }}
-            />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', minWidth: 40, textAlign: 'right' }}>
-              {local.memoryThreshold ?? 85}%
-            </span>
-          </div>
-        </div>
-
-        {/* Latency */}
-        <div className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
-              <Wifi size={14} /> Latency (ICMP)
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: isAdmin ? 'pointer' : 'not-allowed' }}>
-              <input type="checkbox" disabled={!isAdmin} checked={local.latencyEnabled !== false} onChange={e => set('latencyEnabled', e.target.checked)} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
-            </label>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              type="range" min={10} max={1000} step={10}
-              value={local.latencyThreshold ?? 150}
-              disabled={!isAdmin || local.latencyEnabled === false}
-              onChange={e => set('latencyThreshold', Number(e.target.value))}
-              style={{ flex: 1 }}
-            />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', minWidth: 50, textAlign: 'right' }}>
-              {local.latencyThreshold ?? 150}ms
-            </span>
-          </div>
-        </div>
-
-        {/* Offline */}
-        <div className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--red)' }}>
-              <AlertTriangle size={14} /> Offline Detection
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: isAdmin ? 'pointer' : 'not-allowed' }}>
-              <input type="checkbox" disabled={!isAdmin} checked={local.offlineEnabled !== false} onChange={e => set('offlineEnabled', e.target.checked)} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
-            </label>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            ตั้งหน่วงเวลา (Delay) ก่อนแจ้งเตือน
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              type="range" min={0} max={60} step={5}
-              value={local.offlineTimeout ?? 10}
-              disabled={!isAdmin || local.offlineEnabled === false}
-              onChange={e => set('offlineTimeout', Number(e.target.value))}
-              style={{ flex: 1 }}
-            />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', minWidth: 40, textAlign: 'right' }}>
-              {local.offlineTimeout ?? 10} วิ
-            </span>
-          </div>
-        </div>
-
-        {/* PoE Power Budget */}
-        <div className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#fbbf24' }}>
-              <Zap size={14} /> PoE Power Budget
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: isAdmin ? 'pointer' : 'not-allowed' }}>
-              <input type="checkbox" disabled={!isAdmin} checked={local.poeEnabled !== false} onChange={e => set('poeEnabled', e.target.checked)} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
-            </label>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            แจ้งเตือนเมื่อ Allocated หรือ Actual เกิน
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              type="range" min={50} max={100} step={5}
-              value={local.poeThreshold ?? 80}
-              disabled={!isAdmin || local.poeEnabled === false}
-              onChange={e => set('poeThreshold', Number(e.target.value))}
-              style={{ flex: 1 }}
-            />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', minWidth: 40, textAlign: 'right' }}>
-              {local.poeThreshold ?? 80}%
-            </span>
-          </div>
-        </div>
-
-        {/* Temperature */}
-        <div className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#fb923c' }}>
-              <Thermometer size={14} /> Temperature (°C)
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: isAdmin ? 'pointer' : 'not-allowed' }}>
-              <input type="checkbox" disabled={!isAdmin} checked={local.tempEnabled !== false} onChange={e => set('tempEnabled', e.target.checked)} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
-            </label>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              type="range" min={40} max={90} step={5}
-              value={local.tempThreshold ?? 65}
-              disabled={!isAdmin || local.tempEnabled === false}
-              onChange={e => set('tempThreshold', Number(e.target.value))}
-              style={{ flex: 1 }}
-            />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--amber)', minWidth: 45, textAlign: 'right' }}>
-              {local.tempThreshold ?? 65}°C
-            </span>
-          </div>
-        </div>
-
-        {/* Hardware PSU / Fan & Reboot */}
-        <div className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#38bdf8' }}>
-            <Fan size={14} /> Hardware & Reboot
-          </div>
-          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: isAdmin ? 'pointer' : 'not-allowed', fontSize: 11, color: 'var(--text-secondary)' }}>
-            <span>PSU & Cooling Fan Fault</span>
-            <input type="checkbox" disabled={!isAdmin} checked={local.hardwareEnabled !== false} onChange={e => set('hardwareEnabled', e.target.checked)} />
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: isAdmin ? 'pointer' : 'not-allowed', fontSize: 11, color: 'var(--text-secondary)' }}>
-            <span>Device Reboot (&lt; 10 นาที)</span>
-            <input type="checkbox" disabled={!isAdmin} checked={local.rebootEnabled !== false} onChange={e => set('rebootEnabled', e.target.checked)} />
-          </label>
-        </div>
-      </div>
-
-      {isAdmin && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={handleSave} className="btn btn-primary" style={{ fontSize: 12, padding: '7px 18px' }}>
-            💾 บันทึก Rules
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Main AlertsView ─────────────────────────────────────────────────────────
-export function AlertsView() {
+export function AlertsView({ onOpenAlertSettings }) {
   const { canEdit, isAdmin } = useAuth();
   const { showToast } = useToast();
   const {
@@ -382,12 +174,10 @@ export function AlertsView() {
     filterSeverity, setFilterSeverity,
     pollAlerts,
     acknowledgeAlert, unacknowledgeAlert, acknowledgeAllAlerts, clearHistory,
-    alertRules, updateAlertRules,
     notificationsEnabled, toggleNotifications,
   } = useAlerts();
 
   const [tab, setTab] = useState('active'); // 'active' | 'acknowledged' | 'history'
-  const [showRules, setShowRules] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all');
 
@@ -519,34 +309,29 @@ export function AlertsView() {
             <span>{notificationsEnabled ? 'Notify: ON' : 'Notify: OFF'}</span>
           </button>
 
-          {/* Rules Toggle */}
-          <button
-            onClick={() => setShowRules(v => !v)}
-            style={{
-              padding: '6px 10px', borderRadius: 'var(--radius)', cursor: 'pointer', fontSize: 12,
-              display: 'flex', alignItems: 'center', gap: 5,
-              background: showRules ? 'rgba(0,212,255,0.1)' : 'rgba(15,23,42,0.7)',
-              border: `1px solid ${showRules ? 'var(--primary)' : 'var(--border)'}`,
-              color: showRules ? 'var(--primary)' : 'var(--text-secondary)',
-            }}
-          >
-            <Settings2 size={13} />
-            <span>Alert Rules</span>
-            {showRules ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          </button>
+          {/* Open Alert Settings in Settings Page */}
+          {onOpenAlertSettings && (
+            <button
+              onClick={onOpenAlertSettings}
+              style={{
+                padding: '6px 12px', borderRadius: 'var(--radius)', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'rgba(0,212,255,0.1)',
+                border: '1px solid rgba(0,212,255,0.35)',
+                color: 'var(--primary)',
+              }}
+              title="ไปที่หน้าตั้งค่าเกณฑ์การแจ้งเตือนอย่างละเอียด (Settings > Alert Settings)"
+            >
+              <Settings2 size={13} />
+              <span>ตั้งค่า Alert (Settings)</span>
+            </button>
+          )}
 
           <button onClick={pollAlerts} className="btn btn-secondary" style={{ fontSize: 12, padding: '6px 10px' }} title="รีเฟรชรายการแจ้งเตือน">
             <RefreshCw size={13} />
           </button>
         </div>
       </div>
-
-      {/* Rules Panel (collapsible) */}
-      {showRules && (
-        <div className="panel" style={{ padding: '18px 20px' }}>
-          <RulesPanel isAdmin={isAdmin} rules={alertRules} onUpdate={rules => { updateAlertRules(rules); setShowRules(false); showToast('success', 'บันทึก Alert Rules สำเร็จ', 'อัปเดตเกณฑ์การแจ้งเตือนเรียบร้อยแล้ว'); }} />
-        </div>
-      )}
 
       {/* Search & Category Filter Bar */}
       <div className="panel" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>

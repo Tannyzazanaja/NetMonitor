@@ -133,20 +133,40 @@ export function mergeAlertsIntoHistory(history, currentActiveAlerts) {
 // ─────────────────────────────────────────────
 
 export const DEFAULT_ALERT_RULES = {
-  cpuThreshold: 80,       // % — Alert when CPU > this
-  memoryThreshold: 85,    // % — Alert when Memory > this
-  latencyThreshold: 150,  // ms — Alert when latency > this
-  poeThreshold: 80,       // % — Alert when PoE Allocated or Actual >= this
-  tempThreshold: 65,      // °C — Alert when Temperature >= this
-  offlineEnabled: true,   // Alert when device goes offline
-  offlineTimeout: 10,     // seconds - Delay before triggering offline alert
-  cpuEnabled: true,
-  memoryEnabled: true,
+  // 1. Connectivity & Reachability
+  offlineEnabled: true,             // Alert when device goes offline
+  offlineTimeout: 10,               // seconds - Delay before triggering offline alert
+  offlineSeverity: 'critical',      // 'critical' | 'warning'
   latencyEnabled: true,
+  latencyThreshold: 150,            // ms — Warning when latency > this
+  latencyCriticalThreshold: 300,    // ms — Critical when latency > this
+  rebootEnabled: true,              // Alert on recent reboot
+  rebootWindowMinutes: 10,          // minutes — Uptime window considered recent reboot
+  rebootSeverity: 'warning',        // 'warning' | 'critical'
+
+  // 2. System Resource Utilization
+  cpuEnabled: true,
+  cpuThreshold: 80,                 // % — Warning when CPU > this
+  cpuCriticalThreshold: 90,         // % — Critical when CPU > this
+  memoryEnabled: true,
+  memoryThreshold: 85,              // % — Warning when Memory > this
+  memoryCriticalThreshold: 95,      // % — Critical when Memory > this
+
+  // 3. PoE Power & Environmental Health
   poeEnabled: true,
+  poeEvalMode: 'both',              // 'both' | 'allocated' | 'actual'
+  poeThreshold: 80,                 // % — Warning when PoE >= this
+  poeCriticalThreshold: 90,         // % — Critical when PoE >= this
   tempEnabled: true,
-  hardwareEnabled: true,  // Alert on PSU / Fan faults
-  rebootEnabled: true,    // Alert on recent reboot (< 10 mins)
+  tempThreshold: 65,                // °C — Warning when Temperature >= this
+  tempCriticalThreshold: 75,        // °C — Critical when Temperature >= this
+  hardwareEnabled: true,            // Master toggle for PSU & Fan faults
+  psuEnabled: true,                 // Alert on PSU faults
+  fanEnabled: true,                 // Alert on Cooling Fan faults
+
+  // 4. Audio & Notification Preferences
+  soundCriticalEnabled: true,       // Play audio beep on Critical alert
+  soundWarningEnabled: true,        // Play audio beep on Warning alert
 };
 
 export async function loadAlertRules() {

@@ -1051,6 +1051,7 @@ async function pollAlerts() {
 
       // 3. Evaluate Offline & High Latency States for every active device
       const offlineDelayMs = Math.max(0, Number(alertRules.offlineTimeout ?? 0)) * 1000;
+      const offlineSeverity = alertRules.offlineSeverity === 'warning' ? 'warning' : 'critical';
       for (const d of enabledDevices) {
         const ip = d.ip.trim();
         const isAlive = icmpStatus[ip];
@@ -1070,7 +1071,7 @@ async function pollAlerts() {
               newAlertsMap.set(id, normalizeAlert({
                 id,
                 type: 'offline',
-                severity: 'critical',
+                severity: offlineSeverity,
                 deviceIp: ip,
                 deviceName: d.name || ip,
                 title: 'Device Offline',
@@ -1088,18 +1089,20 @@ async function pollAlerts() {
           // Check High Latency threshold for online devices
           const latMs = icmpLatencyMs[ip];
           const latThreshold = Number(alertRules.latencyThreshold) || 150;
+          const latCritThreshold = Math.max(latThreshold, Number(alertRules.latencyCriticalThreshold) || Math.max(latThreshold * 2, 300));
           if (alertRules.latencyEnabled !== false && latMs !== undefined && !isNaN(latMs) && latMs > latThreshold) {
             const id = `latency-${ip}`;
             const existing = activeAlertsMap.get(id);
             const startsAt = existing ? existing.startsAt : Date.now();
+            const isCrit = latMs >= latCritThreshold;
             newAlertsMap.set(id, normalizeAlert({
               id,
               type: 'latency',
-              severity: latMs > Math.max(latThreshold * 2, 300) ? 'critical' : 'warning',
+              severity: isCrit ? 'critical' : 'warning',
               deviceIp: ip,
               deviceName: d.name || ip,
               title: 'High Network Latency',
-              message: `ICMP response time reached ${Math.round(latMs)} ms (Threshold: ${latThreshold} ms)`,
+              message: `ICMP response time reached ${Math.round(latMs)} ms (${isCrit ? `Critical ≥ ${latCritThreshold}` : `Warning > ${latThreshold}`} ms)`,
               startsAt,
               status: 'firing',
               acknowledged: acknowledgedAlertIds.has(id),
@@ -1117,18 +1120,21 @@ async function pollAlerts() {
         if (!perf) continue;
 
         // 4.1 CPU threshold
-        if (alertRules.cpuEnabled !== false && perf.cpu != null && perf.cpu > (alertRules.cpuThreshold || 80)) {
+        const cpuWarn = Number(alertRules.cpuThreshold) || 80;
+        const cpuCrit = Math.max(cpuWarn, Number(alertRules.cpuCriticalThreshold) || 90);
+        if (alertRules.cpuEnabled !== false && perf.cpu != null && perf.cpu > cpuWarn) {
           const id = `cpu-${ip}`;
           const existing = activeAlertsMap.get(id);
           const startsAt = existing ? existing.startsAt : Date.now();
+          const isCrit = perf.cpu >= cpuCrit;
           newAlertsMap.set(id, normalizeAlert({
             id,
             type: 'cpu',
-            severity: perf.cpu > 90 ? 'critical' : 'warning',
+            severity: isCrit ? 'critical' : 'warning',
             deviceIp: ip,
             deviceName: d.name || ip,
             title: 'High CPU Utilization',
-            message: `CPU usage reached ${perf.cpu.toFixed(1)}% (Threshold: ${alertRules.cpuThreshold || 80}%)`,
+            message: `CPU usage reached ${perf.cpu.toFixed(1)}% (${isCrit ? `Critical ≥ ${cpuCrit}%` : `Warning > ${cpuWarn}%`})`,
             startsAt,
             status: 'firing',
             acknowledged: acknowledgedAlertIds.has(id),
@@ -1136,18 +1142,21 @@ async function pollAlerts() {
         }
 
         // 4.2 Memory threshold
-        if (alertRules.memoryEnabled !== false && perf.memory != null && perf.memory > (alertRules.memoryThreshold || 85)) {
+        const memWarn = Number(alertRules.memoryThreshold) || 85;
+        const memCrit = Math.max(memWarn, Number(alertRules.memoryCriticalThreshold) || 95);
+        if (alertRules.memoryEnabled !== false && perf.memory != null && perf.memory > memWarn) {
           const id = `mem-${ip}`;
           const existing = activeAlertsMap.get(id);
           const startsAt = existing ? existing.startsAt : Date.now();
+          const isCrit = perf.memory >= memCrit;
           newAlertsMap.set(id, normalizeAlert({
             id,
             type: 'memory',
-            severity: perf.memory > 95 ? 'critical' : 'warning',
+            severity: isCrit ? 'critical' : 'warning',
             deviceIp: ip,
             deviceName: d.name || ip,
             title: 'High Memory Usage',
-            message: `Memory usage reached ${perf.memory.toFixed(1)}% (Threshold: ${alertRules.memoryThreshold || 85}%)`,
+            message: `Memory usage reached ${perf.memory.toFixed(1)}% (${isCrit ? `Critical ≥ ${memCrit}%` : `Warning > ${memWarn}%`})`,
             startsAt,
             status: 'firing',
             acknowledged: acknowledgedAlertIds.has(id),
@@ -1157,22 +1166,28 @@ async function pollAlerts() {
         // 4.3 PoE Power Utilization (Allocated Power % & Actual Consumption %)
         if (alertRules.poeEnabled !== false && perf.poe && perf.poe.budgetWatts > 0) {
           const poeThreshold = Number(alertRules.poeThreshold) || 80;
+          const poeCritThreshold = Math.max(poeThreshold, Number(alertRules.poeCriticalThreshold) || 90);
+          const poeMode = alertRules.poeEvalMode || 'both';
           const allocPct = perf.poe.allocatedPercent ?? Math.round(((perf.poe.allocatedWatts ?? 0) / perf.poe.budgetWatts) * 100);
           const actualPct = perf.poe.actualPercent ?? perf.poe.percent ?? Math.round(((perf.poe.actualWatts ?? perf.poe.usedWatts ?? 0) / perf.poe.budgetWatts) * 100);
-          const maxPoePct = Math.max(allocPct || 0, actualPct || 0);
 
-          if (maxPoePct >= poeThreshold) {
+          let evaluatedPoePct = Math.max(allocPct || 0, actualPct || 0);
+          if (poeMode === 'allocated') evaluatedPoePct = allocPct || 0;
+          else if (poeMode === 'actual') evaluatedPoePct = actualPct || 0;
+
+          if (evaluatedPoePct >= poeThreshold) {
             const id = `poe-${ip}`;
             const existing = activeAlertsMap.get(id);
             const startsAt = existing ? existing.startsAt : Date.now();
+            const isCrit = evaluatedPoePct >= poeCritThreshold;
             newAlertsMap.set(id, normalizeAlert({
               id,
               type: 'poe',
-              severity: maxPoePct >= 90 ? 'critical' : 'warning',
+              severity: isCrit ? 'critical' : 'warning',
               deviceIp: ip,
               deviceName: d.name || ip,
               title: 'High PoE Power Utilization',
-              message: `PoE Allocated: ${perf.poe.allocatedWatts ?? 0}W (${allocPct}%) · Actual: ${perf.poe.actualWatts ?? perf.poe.usedWatts ?? 0}W (${actualPct}%) / Budget: ${perf.poe.budgetWatts}W (Threshold: ${poeThreshold}%)`,
+              message: `PoE Allocated: ${perf.poe.allocatedWatts ?? 0}W (${allocPct}%) · Actual: ${perf.poe.actualWatts ?? perf.poe.usedWatts ?? 0}W (${actualPct}%) / Budget: ${perf.poe.budgetWatts}W (${isCrit ? `Critical ≥ ${poeCritThreshold}%` : `Warning ≥ ${poeThreshold}%`})`,
               startsAt,
               status: 'firing',
               acknowledged: acknowledgedAlertIds.has(id),
@@ -1183,18 +1198,20 @@ async function pollAlerts() {
         // 4.4 Chassis Temperature (°C)
         if (alertRules.tempEnabled !== false && perf.temp != null && !isNaN(perf.temp)) {
           const tempThreshold = Number(alertRules.tempThreshold) || 65;
+          const tempCritThreshold = Math.max(tempThreshold, Number(alertRules.tempCriticalThreshold) || (tempThreshold + 10));
           if (perf.temp >= tempThreshold) {
             const id = `temp-${ip}`;
             const existing = activeAlertsMap.get(id);
             const startsAt = existing ? existing.startsAt : Date.now();
+            const isCrit = perf.temp >= tempCritThreshold;
             newAlertsMap.set(id, normalizeAlert({
               id,
               type: 'hardware',
-              severity: perf.temp >= (tempThreshold + 10) ? 'critical' : 'warning',
+              severity: isCrit ? 'critical' : 'warning',
               deviceIp: ip,
               deviceName: d.name || ip,
               title: 'High Device Temperature',
-              message: `Chassis temperature reached ${perf.temp}°C (Threshold: ${tempThreshold}°C)`,
+              message: `Chassis temperature reached ${perf.temp}°C (${isCrit ? `Critical ≥ ${tempCritThreshold}°C` : `Warning ≥ ${tempThreshold}°C`})`,
               startsAt,
               status: 'firing',
               acknowledged: acknowledgedAlertIds.has(id),
@@ -1204,7 +1221,7 @@ async function pollAlerts() {
 
         // 4.5 Hardware PSU & Cooling Fan Status
         if (alertRules.hardwareEnabled !== false) {
-          if (perf.psu && (perf.psu.status === 'critical' || perf.psu.status === 'warning')) {
+          if (alertRules.psuEnabled !== false && perf.psu && (perf.psu.status === 'critical' || perf.psu.status === 'warning')) {
             const id = `psu-${ip}`;
             const existing = activeAlertsMap.get(id);
             const startsAt = existing ? existing.startsAt : Date.now();
@@ -1222,7 +1239,7 @@ async function pollAlerts() {
             }));
           }
 
-          if (perf.fans && (perf.fans.status === 'critical' || perf.fans.status === 'warning')) {
+          if (alertRules.fanEnabled !== false && perf.fans && (perf.fans.status === 'critical' || perf.fans.status === 'warning')) {
             const id = `fan-${ip}`;
             const existing = activeAlertsMap.get(id);
             const startsAt = existing ? existing.startsAt : Date.now();
@@ -1241,19 +1258,21 @@ async function pollAlerts() {
           }
         }
 
-        // 4.6 Recent Device Reboot Detection (< 10 mins uptime)
-        if (alertRules.rebootEnabled !== false && perf.rebootRecent === true) {
+        // 4.6 Recent Device Reboot Detection
+        const rebootWindowMins = Math.max(1, Number(alertRules.rebootWindowMinutes) || 10);
+        const isRebootWithinWindow = (perf.uptime != null && perf.uptime > 0 && perf.uptime < rebootWindowMins * 6000) || (rebootWindowMins === 10 && perf.rebootRecent === true);
+        if (alertRules.rebootEnabled !== false && isRebootWithinWindow) {
           const id = `reboot-${ip}`;
           const existing = activeAlertsMap.get(id);
           const startsAt = existing ? existing.startsAt : Date.now();
           newAlertsMap.set(id, normalizeAlert({
             id,
             type: 'reboot',
-            severity: 'warning',
+            severity: alertRules.rebootSeverity === 'critical' ? 'critical' : 'warning',
             deviceIp: ip,
             deviceName: d.name || ip,
             title: 'Device Reboot Detected',
-            message: `Device recently rebooted (System Uptime < 10 minutes).`,
+            message: `Device recently rebooted (System Uptime < ${rebootWindowMins} minutes).`,
             startsAt,
             status: 'firing',
             acknowledged: acknowledgedAlertIds.has(id),
@@ -4210,8 +4229,8 @@ const server = http.createServer(async (req, res) => {
           }
 
           if (key === 'alert_rules') {
-             // Strictly Admin only can modify Alert Rules / Alert Settings
-             if (req.user.role !== 'Admin') return sendJson(res, 403, { error: 'Forbidden. Admin only.' });
+             // Admin and Editor can modify Alert Rules / Alert Settings
+             if (req.user.role !== 'Admin' && req.user.role !== 'Editor') return sendJson(res, 403, { error: 'Forbidden. Admin or Editor only.' });
           } else if (key === 'alert_history' || key === 'alert_acknowledged_ids') {
              // Editor can ack alerts
              if (req.user.role === 'Viewer') return sendJson(res, 403, { error: 'Forbidden.' });

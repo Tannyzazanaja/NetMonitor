@@ -34,6 +34,10 @@ export function AlertProvider({ children }) {
 
   // ── Custom Rules ────────────────────────────────────────────
   const [alertRules, setAlertRules] = useState(DEFAULT_ALERT_RULES);
+  const alertRulesRef = useRef(DEFAULT_ALERT_RULES);
+  useEffect(() => {
+    alertRulesRef.current = alertRules;
+  }, [alertRules]);
 
   // ── UI Filter State ─────────────────────────────────────────
   const [filterSeverity, setFilterSeverity] = useState('all');
@@ -89,10 +93,11 @@ export function AlertProvider({ children }) {
           notifiedAlertIdsRef.current.add(alert.id);
           if (getNotificationsEnabled() && !alert.acknowledged) {
             sendBrowserNotification(alert);
+            const curRules = alertRulesRef.current || DEFAULT_ALERT_RULES;
             if (alert.severity === 'critical') {
-              playAlertBeep('critical');
+              if (curRules.soundCriticalEnabled !== false) playAlertBeep('critical');
             } else {
-              playAlertBeep('warning');
+              if (curRules.soundWarningEnabled !== false) playAlertBeep('warning');
             }
           }
         }
