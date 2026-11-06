@@ -164,28 +164,39 @@ function HistoryCard({ entry }) {
   );
 }
 
-// ─── Custom Rules Panel ──────────────────────────────────────────────────────
-function RulesPanel({ rules, onUpdate }) {
+// ─── Custom Rules Panel (Admin Only) ─────────────────────────────────────────
+function RulesPanel({ rules, onUpdate, isAdmin }) {
   const [local, setLocal] = useState({ ...rules });
 
-  const handleSave = () => onUpdate(local);
-  const set = (key, val) => setLocal(prev => ({ ...prev, [key]: val }));
+  const handleSave = () => {
+    if (!isAdmin) return;
+    onUpdate(local);
+  };
+  const set = (key, val) => {
+    if (!isAdmin) return;
+    setLocal(prev => ({ ...prev, [key]: val }));
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)', marginBottom: 4 }}>
-        ⚙ กำหนด Threshold การแจ้งเตือน (Custom Alert Rules)
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
+          ⚙ กำหนด Threshold การแจ้งเตือน (Custom Alert Rules)
+        </div>
+        <span style={{ fontSize: 11, color: isAdmin ? 'var(--green)' : 'var(--amber)', fontWeight: 600 }}>
+          {isAdmin ? '🛡️ สิทธิ์ผู้ดูแลระบบ (Admin Editable)' : '🔒 เฉพาะผู้ดูแลระบบ (Admin Only - Read Only)'}
+        </span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, opacity: isAdmin ? 1 : 0.65 }}>
         {/* CPU */}
         <div className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--cyan)' }}>
               <Cpu size={14} /> CPU Utilization
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={local.cpuEnabled !== false} onChange={e => set('cpuEnabled', e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: isAdmin ? 'pointer' : 'not-allowed' }}>
+              <input type="checkbox" disabled={!isAdmin} checked={local.cpuEnabled !== false} onChange={e => set('cpuEnabled', e.target.checked)} />
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
             </label>
           </div>
@@ -193,7 +204,7 @@ function RulesPanel({ rules, onUpdate }) {
             <input
               type="range" min={50} max={100} step={5}
               value={local.cpuThreshold ?? 80}
-              disabled={local.cpuEnabled === false}
+              disabled={!isAdmin || local.cpuEnabled === false}
               onChange={e => set('cpuThreshold', Number(e.target.value))}
               style={{ flex: 1 }}
             />
@@ -209,8 +220,8 @@ function RulesPanel({ rules, onUpdate }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--purple)' }}>
               <MemoryStick size={14} /> Memory Usage
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={local.memoryEnabled !== false} onChange={e => set('memoryEnabled', e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: isAdmin ? 'pointer' : 'not-allowed' }}>
+              <input type="checkbox" disabled={!isAdmin} checked={local.memoryEnabled !== false} onChange={e => set('memoryEnabled', e.target.checked)} />
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
             </label>
           </div>
@@ -218,7 +229,7 @@ function RulesPanel({ rules, onUpdate }) {
             <input
               type="range" min={50} max={100} step={5}
               value={local.memoryThreshold ?? 85}
-              disabled={local.memoryEnabled === false}
+              disabled={!isAdmin || local.memoryEnabled === false}
               onChange={e => set('memoryThreshold', Number(e.target.value))}
               style={{ flex: 1 }}
             />
@@ -234,8 +245,8 @@ function RulesPanel({ rules, onUpdate }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
               <Wifi size={14} /> Latency (ICMP)
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={local.latencyEnabled !== false} onChange={e => set('latencyEnabled', e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: isAdmin ? 'pointer' : 'not-allowed' }}>
+              <input type="checkbox" disabled={!isAdmin} checked={local.latencyEnabled !== false} onChange={e => set('latencyEnabled', e.target.checked)} />
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
             </label>
           </div>
@@ -243,7 +254,7 @@ function RulesPanel({ rules, onUpdate }) {
             <input
               type="range" min={10} max={1000} step={10}
               value={local.latencyThreshold ?? 150}
-              disabled={local.latencyEnabled === false}
+              disabled={!isAdmin || local.latencyEnabled === false}
               onChange={e => set('latencyThreshold', Number(e.target.value))}
               style={{ flex: 1 }}
             />
@@ -259,8 +270,8 @@ function RulesPanel({ rules, onUpdate }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--red)' }}>
               <AlertTriangle size={14} /> Offline Detection
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={local.offlineEnabled !== false} onChange={e => set('offlineEnabled', e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: isAdmin ? 'pointer' : 'not-allowed' }}>
+              <input type="checkbox" disabled={!isAdmin} checked={local.offlineEnabled !== false} onChange={e => set('offlineEnabled', e.target.checked)} />
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
             </label>
           </div>
@@ -271,7 +282,7 @@ function RulesPanel({ rules, onUpdate }) {
             <input
               type="range" min={0} max={60} step={5}
               value={local.offlineTimeout ?? 10}
-              disabled={local.offlineEnabled === false}
+              disabled={!isAdmin || local.offlineEnabled === false}
               onChange={e => set('offlineTimeout', Number(e.target.value))}
               style={{ flex: 1 }}
             />
@@ -287,8 +298,8 @@ function RulesPanel({ rules, onUpdate }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#fbbf24' }}>
               <Zap size={14} /> PoE Power Budget
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={local.poeEnabled !== false} onChange={e => set('poeEnabled', e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: isAdmin ? 'pointer' : 'not-allowed' }}>
+              <input type="checkbox" disabled={!isAdmin} checked={local.poeEnabled !== false} onChange={e => set('poeEnabled', e.target.checked)} />
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
             </label>
           </div>
@@ -299,7 +310,7 @@ function RulesPanel({ rules, onUpdate }) {
             <input
               type="range" min={50} max={100} step={5}
               value={local.poeThreshold ?? 80}
-              disabled={local.poeEnabled === false}
+              disabled={!isAdmin || local.poeEnabled === false}
               onChange={e => set('poeThreshold', Number(e.target.value))}
               style={{ flex: 1 }}
             />
@@ -315,8 +326,8 @@ function RulesPanel({ rules, onUpdate }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#fb923c' }}>
               <Thermometer size={14} /> Temperature (°C)
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={local.tempEnabled !== false} onChange={e => set('tempEnabled', e.target.checked)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: isAdmin ? 'pointer' : 'not-allowed' }}>
+              <input type="checkbox" disabled={!isAdmin} checked={local.tempEnabled !== false} onChange={e => set('tempEnabled', e.target.checked)} />
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>เปิด</span>
             </label>
           </div>
@@ -324,7 +335,7 @@ function RulesPanel({ rules, onUpdate }) {
             <input
               type="range" min={40} max={90} step={5}
               value={local.tempThreshold ?? 65}
-              disabled={local.tempEnabled === false}
+              disabled={!isAdmin || local.tempEnabled === false}
               onChange={e => set('tempThreshold', Number(e.target.value))}
               style={{ flex: 1 }}
             />
@@ -339,22 +350,24 @@ function RulesPanel({ rules, onUpdate }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#38bdf8' }}>
             <Fan size={14} /> Hardware & Reboot
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: isAdmin ? 'pointer' : 'not-allowed', fontSize: 11, color: 'var(--text-secondary)' }}>
             <span>PSU & Cooling Fan Fault</span>
-            <input type="checkbox" checked={local.hardwareEnabled !== false} onChange={e => set('hardwareEnabled', e.target.checked)} />
+            <input type="checkbox" disabled={!isAdmin} checked={local.hardwareEnabled !== false} onChange={e => set('hardwareEnabled', e.target.checked)} />
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: isAdmin ? 'pointer' : 'not-allowed', fontSize: 11, color: 'var(--text-secondary)' }}>
             <span>Device Reboot (&lt; 10 นาที)</span>
-            <input type="checkbox" checked={local.rebootEnabled !== false} onChange={e => set('rebootEnabled', e.target.checked)} />
+            <input type="checkbox" disabled={!isAdmin} checked={local.rebootEnabled !== false} onChange={e => set('rebootEnabled', e.target.checked)} />
           </label>
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={handleSave} className="btn btn-primary" style={{ fontSize: 12, padding: '7px 18px' }}>
-          💾 บันทึก Rules
-        </button>
-      </div>
+      {isAdmin && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={handleSave} className="btn btn-primary" style={{ fontSize: 12, padding: '7px 18px' }}>
+            💾 บันทึก Rules
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -531,7 +544,7 @@ export function AlertsView() {
       {/* Rules Panel (collapsible) */}
       {showRules && (
         <div className="panel" style={{ padding: '18px 20px' }}>
-          <RulesPanel rules={alertRules} onUpdate={rules => { updateAlertRules(rules); setShowRules(false); showToast('success', 'บันทึก Alert Rules สำเร็จ', 'อัปเดตเกณฑ์การแจ้งเตือนเรียบร้อยแล้ว'); }} />
+          <RulesPanel isAdmin={isAdmin} rules={alertRules} onUpdate={rules => { updateAlertRules(rules); setShowRules(false); showToast('success', 'บันทึก Alert Rules สำเร็จ', 'อัปเดตเกณฑ์การแจ้งเตือนเรียบร้อยแล้ว'); }} />
         </div>
       )}
 

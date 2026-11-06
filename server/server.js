@@ -4209,7 +4209,10 @@ const server = http.createServer(async (req, res) => {
             return sendJson(res, 200, { ok: true, message: `Saved settings to server`, data: safeDb.settings });
           }
 
-          if (key === 'alert_history' || key === 'alert_acknowledged_ids') {
+          if (key === 'alert_rules') {
+             // Strictly Admin only can modify Alert Rules / Alert Settings
+             if (req.user.role !== 'Admin') return sendJson(res, 403, { error: 'Forbidden. Admin only.' });
+          } else if (key === 'alert_history' || key === 'alert_acknowledged_ids') {
              // Editor can ack alerts
              if (req.user.role === 'Viewer') return sendJson(res, 403, { error: 'Forbidden.' });
           } else {
