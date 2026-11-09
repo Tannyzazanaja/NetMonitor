@@ -50,9 +50,9 @@ export const ANALYTICS_MODULES = {
     gradientTo: 'rgba(16, 185, 129, 0.0)',
     subTypes: ['in', 'out', 'combined'],
     queries: {
-      in: 'sum by (instance) (rate(ifHCInOctets[5m]) or rate(ifInOctets[5m])) * 8 / 1000000',
-      out: 'sum by (instance) (rate(ifHCOutOctets[5m]) or rate(ifOutOctets[5m])) * 8 / 1000000',
-      combined: 'sum by (instance) (rate(ifHCInOctets[5m]) + rate(ifHCOutOctets[5m]) or rate(ifInOctets[5m]) + rate(ifOutOctets[5m])) * 8 / 1000000'
+      in: '(sum by (instance) (rate(ifHCInOctets[5m])) or sum by (instance) (rate(ifInOctets[5m]))) * 8 / 1000000',
+      out: '(sum by (instance) (rate(ifHCOutOctets[5m])) or sum by (instance) (rate(ifOutOctets[5m]))) * 8 / 1000000',
+      combined: '((sum by (instance) (rate(ifHCInOctets[5m])) or sum by (instance) (rate(ifInOctets[5m]))) + (sum by (instance) (rate(ifHCOutOctets[5m])) or sum by (instance) (rate(ifOutOctets[5m])))) * 8 / 1000000'
     }
   },
   interface_util: {
@@ -110,11 +110,11 @@ export const ANALYTICS_MODULES = {
  * Standard Presets for Time Ranges
  */
 export const TIME_RANGE_PRESETS = [
-  { id: '1h', label: 'Last 1 Hour', durationSec: 3600, step: '30s' },
-  { id: '6h', label: 'Last 6 Hours', durationSec: 21600, step: '1m' },
-  { id: '24h', label: 'Last 24 Hours', durationSec: 86400, step: '5m' },
-  { id: '7d', label: 'Last 7 Days', durationSec: 604800, step: '30m' },
-  { id: '30d', label: 'Last 30 Days', durationSec: 2592000, step: '2h' },
+  { id: '1h', label: 'Last 1 Hour', durationSec: 3600, step: '30s' },    // 120 points (~0.9s query)
+  { id: '6h', label: 'Last 6 Hours', durationSec: 21600, step: '2m' },    // 180 points (~1.2s query)
+  { id: '24h', label: 'Last 24 Hours', durationSec: 86400, step: '10m' }, // 144 points (~1.8s query)
+  { id: '7d', label: 'Last 7 Days', durationSec: 604800, step: '1h' },    // 168 points (~3.2s query)
+  { id: '30d', label: 'Last 30 Days', durationSec: 2592000, step: '3h' }, // 240 points (~4.8s query)
   { id: 'custom', label: 'Custom Range' }
 ];
 
@@ -129,8 +129,8 @@ export function calculateTimeRange(rangeId, customStart = null, customEnd = null
     const end = Math.floor(new Date(customEnd).getTime() / 1000);
     const durationSec = Math.max(end - start, 60);
 
-    // Dynamically calculate step targeting ~200 points for optimal rendering performance
-    const stepSec = Math.max(15, Math.floor(durationSec / 200));
+    // Dynamically calculate step targeting ~180 points for optimal rendering performance
+    const stepSec = Math.max(15, Math.floor(durationSec / 180));
     let step = `${stepSec}s`;
     if (stepSec >= 3600) {
       step = `${Math.floor(stepSec / 3600)}h`;
@@ -216,13 +216,26 @@ export function calculateStatistics(points = []) {
 }
 
 /**
- * Checks cache for existing query result within 5 minutes TTL
+ * Adaptive cache TTL based on duration:
+ * 30d -> 30 mins, 7d -> 15 mins, 24h -> 10 mins, 6h -> 5 mins, 1h -> 2 mins
  */
-export function getCachedQueryResult(cacheKey) {
+export function getClientCacheTtl(durationSec = 3600) {
+  if (durationSec > 14 * 86400) return 30 * 60 * 1000; // 30 mins for 30d
+  if (durationSec > 2 * 86400) return 15 * 60 * 1000;  // 15 mins for 7d
+  if (durationSec > 86400) return 10 * 60 * 1000;      // 10 mins for > 24h
+  if (durationSec > 21600) return 5 * 60 * 1000;       // 5 mins for 6h-24h
+  return 2 * 60 * 1000;                                // 2 mins for 1h
+}
+
+/**
+ * Checks cache for existing query result with adaptive TTL
+ */
+export function getCachedQueryResult(cacheKey, durationSec) {
   const cached = analyticsClientCache.get(cacheKey);
   if (!cached) return null;
 
-  if (Date.now() - cached.timestamp > CACHE_TTL_MS) {
+  const ttl = cached.ttl || (durationSec ? getClientCacheTtl(durationSec) : CACHE_TTL_MS);
+  if (Date.now() - cached.timestamp > ttl) {
     analyticsClientCache.delete(cacheKey);
     return null;
   }
@@ -233,12 +246,14 @@ export function getCachedQueryResult(cacheKey) {
 /**
  * Stores query result in client-side cache
  */
-export function setCachedQueryResult(cacheKey, result) {
+export function setCachedQueryResult(cacheKey, result, durationSec) {
+  const ttl = durationSec ? getClientCacheTtl(durationSec) : CACHE_TTL_MS;
   // Prune cache if it gets too large
   if (analyticsClientCache.size > 200) {
     const now = Date.now();
     for (const [k, v] of analyticsClientCache.entries()) {
-      if (now - v.timestamp > CACHE_TTL_MS) {
+      const itemTtl = v.ttl || CACHE_TTL_MS;
+      if (now - v.timestamp > itemTtl) {
         analyticsClientCache.delete(k);
       }
     }
@@ -246,7 +261,8 @@ export function setCachedQueryResult(cacheKey, result) {
 
   analyticsClientCache.set(cacheKey, {
     data: result,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    ttl
   });
 }
 
@@ -297,9 +313,9 @@ export async function fetchAnalyticsData({
 
   const cacheKey = `${queryStr}:${timeParams.start}:${timeParams.end}:${timeParams.step}`;
 
-  // 1. Check Cache Layer (5-Minute TTL)
+  // 1. Check Cache Layer (Adaptive TTL)
   if (!bypassCache) {
-    const cachedEntry = getCachedQueryResult(cacheKey);
+    const cachedEntry = getCachedQueryResult(cacheKey, timeParams.durationSec);
     if (cachedEntry) {
       return {
         ok: true,
@@ -428,8 +444,8 @@ export async function fetchAnalyticsData({
       deviceCount: Object.keys(deviceSeriesMap).length
     };
 
-    // 5. Store in 5-Minute Cache Layer
-    setCachedQueryResult(cacheKey, processedData);
+    // 5. Store in Cache Layer with Adaptive TTL
+    setCachedQueryResult(cacheKey, processedData, timeParams.durationSec);
 
     return {
       ok: true,

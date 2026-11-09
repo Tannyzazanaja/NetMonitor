@@ -10,9 +10,18 @@ const crypto = require('crypto');
 const sessions = new Map();
 const SESSION_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
-// 5-Minute In-Memory Cache Layer for Prometheus Historical Analytics
+// Adaptive In-Memory Cache Layer for Prometheus Historical Analytics
 const analyticsServerCache = new Map();
-const ANALYTICS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const ANALYTICS_CACHE_TTL = 5 * 60 * 1000; // baseline 5 minutes
+
+function getAnalyticsCacheTtl(start, end) {
+  const rangeSec = Math.abs((parseInt(end, 10) || 0) - (parseInt(start, 10) || 0));
+  if (rangeSec > 14 * 86400) return 30 * 60 * 1000; // 30 minutes for > 14 days (e.g. 30d)
+  if (rangeSec > 2 * 86400) return 15 * 60 * 1000;  // 15 minutes for > 2 days (e.g. 7d)
+  if (rangeSec > 86400) return 10 * 60 * 1000;      // 10 minutes for > 24 hours
+  if (rangeSec > 21600) return 5 * 60 * 1000;       // 5 minutes for 6h-24h
+  return 2 * 60 * 1000;                             // 2 minutes for 1h
+}
 
 const fs = require('fs');
 const path = require('path');
@@ -3720,10 +3729,11 @@ const server = http.createServer(async (req, res) => {
       const cacheKey = `${query}:${start}:${end}:${step}`;
       const now = Date.now();
 
-      // Check 5-minute cache
+      // Check cache with adaptive TTL
       if (!bypassCache) {
         const cached = analyticsServerCache.get(cacheKey);
-        if (cached && (now - cached.time) < ANALYTICS_CACHE_TTL) {
+        const itemTtl = getAnalyticsCacheTtl(start, end);
+        if (cached && (now - cached.time) < itemTtl) {
           return sendJson(res, 200, {
             ok: true,
             cached: true,
@@ -3767,12 +3777,14 @@ const server = http.createServer(async (req, res) => {
           }
         }
 
-        analyticsServerCache.set(cacheKey, { time: now, data: resultData });
+        const itemTtl = getAnalyticsCacheTtl(start, end);
+        analyticsServerCache.set(cacheKey, { time: now, data: resultData, ttl: itemTtl });
 
         // Prune cache if over 300 entries
         if (analyticsServerCache.size > 300) {
           for (const [k, v] of analyticsServerCache.entries()) {
-            if (now - v.time > ANALYTICS_CACHE_TTL) analyticsServerCache.delete(k);
+            const entryTtl = v.ttl || ANALYTICS_CACHE_TTL;
+            if (now - v.time > entryTtl) analyticsServerCache.delete(k);
           }
         }
 
@@ -4262,6 +4274,55 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// =============================================================================
+// HISTORICAL ANALYTICS PROACTIVE CACHE WARMER
+// Background pre-computation for 24h & 7d historical queries so UI loads instantly (< 5ms)
+// =============================================================================
+let isWarmingAnalytics = false;
+async function warmAnalyticsCache() {
+  if (isWarmingAnalytics) return;
+  isWarmingAnalytics = true;
+  try {
+    const db = readDb();
+    const promBase = (db.settings?.prometheusUrl || 'http://127.0.0.1:9090').replace(/\/+$/, '');
+    const now = Math.floor(Date.now() / 1000);
+
+    const bandwidthQuery = '((sum by (instance) (rate(ifHCInOctets[5m])) or sum by (instance) (rate(ifInOctets[5m]))) + (sum by (instance) (rate(ifHCOutOctets[5m])) or sum by (instance) (rate(ifOutOctets[5m])))) * 8 / 1000000';
+
+    const targets = [
+      { start: now - 86400, end: now, step: '10m' },   // 24 Hours
+      { start: now - 604800, end: now, step: '1h' },    // 7 Days
+    ];
+
+    for (const t of targets) {
+      const cacheKey = `${bandwidthQuery}:${t.start}:${t.end}:${t.step}`;
+      const cached = analyticsServerCache.get(cacheKey);
+      const ttl = getAnalyticsCacheTtl(t.start, t.end);
+      if (cached && (Date.now() - cached.time) < ttl * 0.7) {
+        continue;
+      }
+
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 20000);
+      const promUrl = `${promBase}/api/v1/query_range?query=${encodeURIComponent(bandwidthQuery)}&start=${t.start}&end=${t.end}&step=${t.step}`;
+      const pRes = await fetch(promUrl, { signal: controller.signal });
+      clearTimeout(tid);
+
+      if (pRes.ok) {
+        const pJson = await pRes.json();
+        if (pJson.status === 'success' && Array.isArray(pJson.data?.result)) {
+          analyticsServerCache.set(cacheKey, { time: Date.now(), data: pJson.data.result, ttl });
+          console.log(`[Analytics] Proactively warmed cache for range ${t.step} (${pJson.data.result.length} series)`);
+        }
+      }
+    }
+  } catch (err) {
+    // Non-critical background task
+  } finally {
+    isWarmingAnalytics = false;
+  }
+}
+
 if (require.main === module) {
   const host = process.env.HOST_BIND || '0.0.0.0';
   server.listen(PORT, host, () => {
@@ -4289,6 +4350,11 @@ if (require.main === module) {
 
     // Dynamic poller scheduling based on runtime settings
     restartBackendPollers();
+
+    // Warm analytics cache proactively
+    setTimeout(warmAnalyticsCache, 8000);
+    const warmAnalyticsInterval = setInterval(warmAnalyticsCache, 10 * 60 * 1000);
+    if (warmAnalyticsInterval.unref) warmAnalyticsInterval.unref();
   });
 }
 
