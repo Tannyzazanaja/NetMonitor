@@ -323,7 +323,7 @@ export async function fetchAnalyticsData({
     // Try backend analytics endpoint first
     try {
       const backendUrl = `/api/analytics/query_range?query=${encodeURIComponent(queryStr)}&start=${timeParams.start}&end=${timeParams.end}&step=${timeParams.step}${bypassCache ? '&bypassCache=true' : ''}`;
-      const res = await fetch(backendUrl, { signal: AbortSignal.timeout(8000) });
+      const res = await fetch(backendUrl, { signal: AbortSignal.timeout(45000) });
       if (res.ok) {
         const json = await res.json();
         if (json.ok && Array.isArray(json.data) && json.data.length > 0) {

@@ -62,7 +62,7 @@ export class PrometheusClient {
     const effectiveBase = this.getEffectiveBaseUrl();
     const url = `${effectiveBase}/api/v1/query_range?query=${encodeURIComponent(query)}&start=${start}&end=${end}&step=${step}`;
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      const res = await fetch(url, { signal: AbortSignal.timeout(45000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       const data = await res.json();
       if (data.status !== 'success') throw new Error(data.error || 'Range query failed');
@@ -71,7 +71,7 @@ export class PrometheusClient {
       if (effectiveBase !== '/api/prometheus' && typeof window !== 'undefined') {
         try {
           const fallbackUrl = `/api/prometheus/api/v1/query_range?query=${encodeURIComponent(query)}&start=${start}&end=${end}&step=${step}`;
-          const fRes = await fetch(fallbackUrl, { signal: AbortSignal.timeout(8000) });
+          const fRes = await fetch(fallbackUrl, { signal: AbortSignal.timeout(45000) });
           if (fRes.ok) {
             const fData = await fRes.json();
             if (fData.status === 'success') {

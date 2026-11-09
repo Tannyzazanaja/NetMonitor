@@ -1846,7 +1846,7 @@ async function pollPerf() {
 
         if (!devicePerfHistory[d.ip]) devicePerfHistory[d.ip] = [];
         devicePerfHistory[d.ip].push({ t: now, cpu: 0, mem: 0 });
-        if (devicePerfHistory[d.ip].length > 2880) devicePerfHistory[d.ip].shift();
+        if (devicePerfHistory[d.ip].length > 20160) devicePerfHistory[d.ip].shift(); // Retain up to 7 days (20160 x 30s samples)
       } else {
         onlineDevices.push(d);
       }
@@ -1892,7 +1892,7 @@ async function pollPerf() {
           mem: memVal
         });
 
-        if (devicePerfHistory[devIp].length > 2880) {
+        if (devicePerfHistory[devIp].length > 20160) { // Retain up to 7 days (20160 x 30s samples)
           devicePerfHistory[devIp].shift();
         }
       }
@@ -3739,7 +3739,7 @@ const server = http.createServer(async (req, res) => {
 
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout for Prometheus range query (allows 7d/30d aggregations across all switches)
         const pRes = await fetch(promUrl, { signal: controller.signal });
         clearTimeout(timeoutId);
 
@@ -3843,6 +3843,8 @@ const server = http.createServer(async (req, res) => {
       let durationMs = 3600 * 1000; // default 1h
       if (range === '12h') durationMs = 12 * 3600 * 1000;
       else if (range === '24h') durationMs = 24 * 3600 * 1000;
+      else if (range === '7d') durationMs = 7 * 86400 * 1000;
+      else if (range === '30d') durationMs = 30 * 86400 * 1000;
 
       const cutoff = Date.now() - durationMs;
       let rawList = devicePerfHistory[targetIp] || [];
