@@ -26,6 +26,7 @@ export function TopologyView({ onOpenAddDevice, onOpenEditDevice }) {
     topoLinks,
     layoutMode,
     setLayoutMode,
+    autoAlignTopology,
     refreshTopology,
     runDiscoveryPipeline,
     exportTopologyJson,
@@ -34,6 +35,12 @@ export function TopologyView({ onOpenAddDevice, onOpenEditDevice }) {
   } = useTopology();
 
   const [viewType, setViewType] = useState('canvas'); // Default to Interactive Canvas
+
+  const totalNodes = topoNodes.length;
+  const connectedNodes = topoNodes.filter(n => (n.linkCount || 0) > 0);
+  const connectedCount = connectedNodes.length;
+  const standaloneCount = totalNodes - connectedCount;
+  const coveragePercent = totalNodes > 0 ? Math.round((connectedCount / totalNodes) * 100) : 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -70,19 +77,48 @@ export function TopologyView({ onOpenAddDevice, onOpenEditDevice }) {
               ผังโครงสร้างเครือข่ายองค์กร (Enterprise Topology Discovery)
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 10, marginTop: 2, flexWrap: 'wrap' }}>
-              <span>โหนดโครงข่าย: <strong style={{ color: 'var(--text-primary)' }}>{topoNodes.length}</strong></span>
+              <span>โหนดทั้งหมด: <strong style={{ color: 'var(--text-primary)' }}>{totalNodes}</strong></span>
               <span>·</span>
               <span>สายเชื่อมโยง: <strong style={{ color: 'var(--primary)' }}>{topoLinks.length} Links</strong></span>
               <span>·</span>
-              <span>รองรับ: <strong style={{ color: 'var(--green)' }}>Cisco · Aruba · HPE · Ruckus</strong></span>
+              <span>ความครอบคลุม: <strong style={{ color: coveragePercent >= 90 ? 'var(--green)' : '#f59e0b' }}>{connectedCount}/{totalNodes} ({coveragePercent}%)</strong></span>
+              {standaloneCount > 0 && (
+                <>
+                  <span>·</span>
+                  <span title="สวิตช์เดี่ยวที่ไม่พบ LLDP/CDP Neighbor จัดวางในโซน Standalone ด้านล่าง">
+                    สวิตช์เดี่ยว (Standalone): <strong style={{ color: '#94a3b8' }}>{standaloneCount} โหนด</strong>
+                  </span>
+                </>
+              )}
               <span>·</span>
-              <span>สถานะ: <strong style={{ color: '#38bdf8' }}>Semi-Automatic Active</strong></span>
+              <span>สถาปัตยกรรม: <strong style={{ color: '#38bdf8' }}>WhatsUp Gold Tree</strong></span>
             </div>
           </div>
         </div>
 
         {/* Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {/* 1-Click Auto-Align WhatsUp Gold Button */}
+          <button
+            onClick={() => autoAlignTopology('hierarchical')}
+            className="btn btn-secondary"
+            style={{
+              fontSize: 12,
+              padding: '7px 14px',
+              background: 'rgba(245, 158, 11, 0.12)',
+              border: '1px solid rgba(245, 158, 11, 0.45)',
+              color: '#fbbf24',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+            title="จัดผังต้นไม้แบบ WhatsUp Gold / Zabbix อัตโนมัติ แก้สายระโยงระยางและจัดกลุ่มกิ่งก้านสาขา"
+          >
+            <Zap size={14} color="#f59e0b" />
+            <span>จัดผังแบบ WhatsUp Gold</span>
+          </button>
+
           {/* Semi-Automatic Discovery Button */}
           <button
             onClick={() => runDiscoveryPipeline()}
@@ -176,10 +212,10 @@ export function TopologyView({ onOpenAddDevice, onOpenEditDevice }) {
                   fontWeight: 600,
                   cursor: 'pointer',
                 }}
-                title="Hierarchical Sugiyama Layered Layout"
+                title="จัดผังต้นไม้แบบ WhatsUp Gold / Zabbix (Hierarchical Sugiyama Layered Layout)"
               >
                 <Layers size={12} />
-                <span>Hierarchical</span>
+                <span>Tree (Sugiyama)</span>
               </button>
               <button
                 onClick={() => setLayoutMode('force')}

@@ -244,19 +244,233 @@ console.log('✅ [Test 4 Passed] All 4 Edge Types correctly identified.\n');
 console.log('[Test 5] Verifying Hierarchical & Force-Directed Layout computations...');
 
 function computeHierarchicalLayout(nodes, edges = [], options = {}) {
-  const width = options.width || 1200;
-  const tiers = { 0: [], 1: [], 2: [], 3: [], 4: [] };
-  nodes.forEach(n => (tiers[n.tier ?? 3] || tiers[3]).push(n));
-  const tierY = { 0: 80, 1: 220, 2: 380, 3: 540, 4: 700 };
-  const positions = {};
-  Object.keys(tiers).forEach(t => {
-    const list = tiers[t];
-    const y = tierY[t] || 540;
-    const spacing = Math.max(120, width / (list.length + 1));
-    list.forEach((node, idx) => {
-      positions[node.id] = { x: Math.round(spacing * (idx + 1)), y };
-    });
+  const width = options.width || 1800;
+  if (!nodes || nodes.length === 0) return {};
+
+  const adj = {};
+  const degree = {};
+  nodes.forEach(n => {
+    adj[n.id] = new Set();
+    degree[n.id] = 0;
   });
+
+  edges.forEach(e => {
+    const s = typeof e.source === 'object' ? e.source.id : e.source;
+    const t = typeof e.target === 'object' ? e.target.id : e.target;
+    if (adj[s] && adj[t]) {
+      adj[s].add(t);
+      adj[t].add(s);
+      degree[s] = (degree[s] || 0) + 1;
+      degree[t] = (degree[t] || 0) + 1;
+    }
+  });
+
+  const connectedNodes = [];
+  const standaloneNodes = [];
+  nodes.forEach(n => {
+    if ((degree[n.id] || 0) === 0) {
+      standaloneNodes.push(n);
+    } else {
+      connectedNodes.push(n);
+    }
+  });
+
+  if (edges.length === 0 || connectedNodes.length === 0) {
+    const positions = {};
+    const cols = Math.min(8, Math.max(4, Math.ceil(Math.sqrt(nodes.length * 1.5))));
+    const spacingX = 140;
+    const spacingY = 120;
+    const startX = Math.max(100, (width - cols * spacingX) / 2);
+    nodes.forEach((n, idx) => {
+      positions[n.id] = {
+        x: Math.round(startX + (idx % cols) * spacingX),
+        y: Math.round(100 + Math.floor(idx / cols) * spacingY),
+        isStandalone: true,
+      };
+    });
+    return positions;
+  }
+
+  const tierLists = { 0: [], 1: [], 2: [], 3: [], 4: [] };
+  connectedNodes.forEach(n => {
+    const t = n.tier ?? 3;
+    (tierLists[t] || tierLists[3]).push(n);
+  });
+
+  if (tierLists[1].length === 0 && tierLists[0].length === 0) {
+    if (tierLists[2].length > 0) {
+      tierLists[1].push(tierLists[2].shift());
+    } else if (tierLists[3].length > 0) {
+      const topNode = [...tierLists[3]].sort((a, b) => (degree[b.id] || 0) - (degree[a.id] || 0))[0];
+      tierLists[3] = tierLists[3].filter(n => n.id !== topNode.id);
+      tierLists[1].push(topNode);
+    }
+  }
+
+  const parentCandidates = [...tierLists[2], ...tierLists[1], ...tierLists[0]];
+  const candidateIdSet = new Set(parentCandidates.map(p => p.id));
+
+  const childrenByParent = new Map();
+  parentCandidates.forEach(p => childrenByParent.set(p.id, []));
+  const unassignedChildren = [];
+
+  [...tierLists[3], ...tierLists[4]].forEach(child => {
+    const connectedParents = Array.from(adj[child.id] || []).filter(nbrId => candidateIdSet.has(nbrId));
+    if (connectedParents.length > 0) {
+      const primaryParentId = connectedParents[0];
+      if (childrenByParent.has(primaryParentId)) {
+        childrenByParent.get(primaryParentId).push(child);
+      } else {
+        unassignedChildren.push(child);
+      }
+    } else {
+      unassignedChildren.push(child);
+    }
+  });
+
+  unassignedChildren.forEach(child => {
+    let assigned = false;
+    for (const nbrId of (adj[child.id] || [])) {
+      for (const [pId, cList] of childrenByParent.entries()) {
+        if (cList.some(c => c.id === nbrId)) {
+          cList.push(child);
+          assigned = true;
+          break;
+        }
+      }
+      if (assigned) break;
+    }
+    if (!assigned && parentCandidates.length > 0) {
+      childrenByParent.get(parentCandidates[0].id).push(child);
+    }
+  });
+
+  const POD_X_SPACING = 135;
+  const POD_Y_SPACING = 110;
+  const BRANCH_GAP = 90;
+
+  const branchDimensions = new Map();
+  let totalBranchesWidth = 0;
+
+  const activeParents = parentCandidates.filter(p => (childrenByParent.get(p.id)?.length || 0) > 0 || tierLists[2].includes(p));
+  const layoutParents = activeParents.length > 0 ? activeParents : parentCandidates;
+
+  layoutParents.forEach(p => {
+    const children = childrenByParent.get(p.id) || [];
+    const count = children.length;
+    let cols = 1;
+    let rows = 1;
+    if (count <= 3) {
+      cols = Math.max(1, count);
+      rows = 1;
+    } else if (count <= 8) {
+      cols = Math.ceil(count / 2);
+      rows = 2;
+    } else if (count <= 15) {
+      cols = Math.ceil(count / 3);
+      rows = 3;
+    } else {
+      cols = Math.ceil(count / 4);
+      rows = 4;
+    }
+    const branchW = Math.max(160, cols * POD_X_SPACING);
+    branchDimensions.set(p.id, { cols, rows, branchW, children });
+    totalBranchesWidth += branchW + BRANCH_GAP;
+  });
+
+  const canvasWidth = Math.max(width, totalBranchesWidth + 400);
+  const startBranchX = Math.max(160, (canvasWidth - totalBranchesWidth) / 2);
+
+  const positions = {};
+  let maxTreeY = 540;
+
+  const t0Y = 80;
+  if (tierLists[0].length > 0) {
+    const t0Spacing = Math.max(180, canvasWidth / (tierLists[0].length + 1));
+    tierLists[0].forEach((n, idx) => {
+      positions[n.id] = {
+        x: Math.round(t0Spacing * (idx + 1)),
+        y: t0Y,
+      };
+    });
+  }
+
+  const t1Y = tierLists[0].length > 0 ? 220 : 120;
+  if (tierLists[1].length > 0) {
+    const t1Spacing = Math.max(220, canvasWidth / (tierLists[1].length + 1));
+    tierLists[1].forEach((n, idx) => {
+      positions[n.id] = {
+        x: Math.round(t1Spacing * (idx + 1)),
+        y: t1Y,
+      };
+    });
+  }
+
+  const t2Y = tierLists[1].length > 0 ? (t1Y + 160) : (t0Y + 160);
+  const t3BaseY = t2Y + 160;
+
+  let currentBranchLeft = startBranchX;
+
+  layoutParents.forEach(p => {
+    const info = branchDimensions.get(p.id) || { cols: 1, rows: 1, branchW: 160, children: [] };
+    const branchCenterX = Math.round(currentBranchLeft + info.branchW / 2);
+
+    if (positions[p.id]) {
+      positions[p.id].x = branchCenterX;
+    } else {
+      positions[p.id] = {
+        x: branchCenterX,
+        y: t2Y,
+      };
+    }
+
+    const { cols, children } = info;
+    const startChildX = branchCenterX - ((cols - 1) * POD_X_SPACING) / 2;
+
+    children.forEach((child, cIdx) => {
+      const col = cIdx % cols;
+      const row = Math.floor(cIdx / cols);
+      const childX = Math.round(startChildX + col * POD_X_SPACING);
+      const childY = Math.round(t3BaseY + row * POD_Y_SPACING);
+
+      positions[child.id] = {
+        x: childX,
+        y: childY,
+      };
+
+      if (childY > maxTreeY) {
+        maxTreeY = childY;
+      }
+    });
+
+    currentBranchLeft += info.branchW + BRANCH_GAP;
+  });
+
+  if (standaloneNodes.length > 0) {
+    const shelfY = maxTreeY + 220;
+    const shelfSpacing = 140;
+    const totalShelfW = (standaloneNodes.length - 1) * shelfSpacing;
+    const shelfStartX = Math.round(canvasWidth / 2 - totalShelfW / 2);
+
+    standaloneNodes.forEach((node, idx) => {
+      positions[node.id] = {
+        x: Math.round(shelfStartX + idx * shelfSpacing),
+        y: shelfY,
+        isStandalone: true,
+      };
+    });
+  }
+
+  nodes.forEach(n => {
+    if (!positions[n.id]) {
+      positions[n.id] = {
+        x: Math.round(canvasWidth / 2),
+        y: maxTreeY + 140,
+        isStandalone: true,
+      };
+    }
+  });
+
   return positions;
 }
 

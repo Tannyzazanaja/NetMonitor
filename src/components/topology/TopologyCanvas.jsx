@@ -163,6 +163,31 @@ export function TopologyCanvas() {
 
   const initialFitDoneRef = useRef(false);
 
+  // Listen for programmatic view reset / auto-align events
+  useEffect(() => {
+    const handleReset = () => {
+      resetView();
+    };
+    window.addEventListener('netmonitor:reset_canvas_view', handleReset);
+    return () => window.removeEventListener('netmonitor:reset_canvas_view', handleReset);
+  }, [resetView]);
+
+  // Traffic Flow Particle Animation Loop (smooth particle movement for live NOC feel)
+  const [animTick, setAnimTick] = useState(0);
+  useEffect(() => {
+    let animId;
+    let lastTime = performance.now();
+    const loop = (now) => {
+      if (now - lastTime > 40) {
+        lastTime = now;
+        setAnimTick(prev => (prev + 1) % 1000);
+      }
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animId);
+  }, []);
+
   // Auto-fit ONLY on cold initial mount when nodes first arrive AND user has never zoomed or panned
   // NEVER auto-fit or reset view when dragging nodes or when background telemetry polls!
   useEffect(() => {
@@ -219,8 +244,48 @@ export function TopologyCanvas() {
       }
     }
 
-    // 1. Draw Links (Batched & Color Coded by 4 Edge Types: LLDP, CDP, Discovered, Manual)
-    topoLinks.forEach((link) => {
+    // 0. Draw Standalone Devices Shelf Boundary Box (WhatsUp Gold Style Enterprise Dock)
+    const standaloneNodes = topoNodes.filter(n => n.isStandalone || getNodePos(n.id)?.isStandalone);
+    if (standaloneNodes.length > 0) {
+      const sPositions = standaloneNodes.map(n => getNodePos(n.id)).filter(Boolean);
+      if (sPositions.length > 0) {
+        const minX = Math.min(...sPositions.map(p => p.x)) - 75;
+        const maxX = Math.max(...sPositions.map(p => p.x)) + 75;
+        const minY = Math.min(...sPositions.map(p => p.y)) - 52;
+        const maxY = Math.max(...sPositions.map(p => p.y)) + 65;
+        const boxW = Math.max(300, maxX - minX);
+        const boxH = maxY - minY;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.45)';
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 6]);
+        if (ctx.roundRect) {
+          ctx.roundRect(minX, minY, boxW, boxH, 10);
+        } else {
+          ctx.rect(minX, minY, boxW, boxH);
+        }
+        ctx.fill();
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Shelf Title Header
+        ctx.font = 'bold 12px "Outfit", "Inter", sans-serif';
+        ctx.fillStyle = '#94a3b8';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`📦 สวิตช์เดี่ยว (Standalone Devices - ${standaloneNodes.length} โหนด)`, minX + 16, minY + 12);
+
+        ctx.font = '10px "JetBrains Mono", monospace';
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('ตรวจไม่พบ LLDP / CDP Neighbor (อาจยังไม่ได้เปิด LLDP ในอุปกรณ์ หรืออยู่นอกโครงข่าย Discovery)', minX + 16, minY + 28);
+        ctx.restore();
+      }
+    }
+
+    // 1. Draw Links with Smooth Curved Bézier Lines & Traffic Particles
+    topoLinks.forEach((link, linkIdx) => {
       const srcPos = getNodePos(link.source);
       const dstPos = getNodePos(link.target);
       if (!srcPos || !dstPos) return;
@@ -228,9 +293,31 @@ export function TopologyCanvas() {
       const isConnectedToSelected =
         selectedNode && (selectedNode.id === link.source || selectedNode.id === link.target);
 
+      const dx = dstPos.x - srcPos.x;
+      const dy = dstPos.y - srcPos.y;
+      const isVerticalTree = Math.abs(dy) > 35;
+
       ctx.beginPath();
-      ctx.moveTo(srcPos.x, srcPos.y);
-      ctx.lineTo(dstPos.x, dstPos.y);
+      let cp1x, cp1y, cp2x, cp2y, midX, midY;
+
+      if (isVerticalTree) {
+        // Smooth Cubic Bézier Tree S-Curve
+        cp1x = srcPos.x;
+        cp1y = srcPos.y + dy * 0.45;
+        cp2x = dstPos.x;
+        cp2y = dstPos.y - dy * 0.45;
+        ctx.moveTo(srcPos.x, srcPos.y);
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, dstPos.x, dstPos.y);
+        midX = (srcPos.x + dstPos.x) / 2;
+        midY = (srcPos.y + dstPos.y) / 2;
+      } else {
+        // Same-tier Peer Quadratic Curved Arch
+        midX = (srcPos.x + dstPos.x) / 2;
+        const arch = Math.min(45, Math.max(16, Math.abs(dx) * 0.18));
+        midY = srcPos.y - arch;
+        ctx.moveTo(srcPos.x, srcPos.y);
+        ctx.quadraticCurveTo(midX, midY, dstPos.x, dstPos.y);
+      }
 
       if (link.isUp === false) {
         ctx.strokeStyle = '#ef4444'; // Red for down link
@@ -267,10 +354,30 @@ export function TopologyCanvas() {
       ctx.setLineDash([]);
       ctx.shadowBlur = 0;
 
+      // Draw Traffic Flow Particles along active links (Live NOC Pulse)
+      if (link.isUp !== false && (transform.scale >= 0.55 || isConnectedToSelected)) {
+        const t = ((animTick * 0.012 + linkIdx * 0.11) % 1);
+        let px, py;
+        if (isVerticalTree) {
+          const it = 1 - t;
+          px = it * it * it * srcPos.x + 3 * it * it * t * cp1x + 3 * it * t * t * cp2x + t * t * t * dstPos.x;
+          py = it * it * it * srcPos.y + 3 * it * it * t * cp1y + 3 * it * t * t * cp2y + t * t * t * dstPos.y;
+        } else {
+          const it = 1 - t;
+          px = it * it * srcPos.x + 2 * it * t * midX + t * t * dstPos.x;
+          py = it * it * srcPos.y + 2 * it * t * midY + t * t * dstPos.y;
+        }
+        ctx.beginPath();
+        ctx.arc(px, py, isConnectedToSelected ? 3 : 2, 0, Math.PI * 2);
+        ctx.fillStyle = isConnectedToSelected ? '#ffffff' : (link.protocol === 'CDP' ? '#60a5fa' : '#34d399');
+        ctx.shadowColor = isConnectedToSelected ? '#00d4ff' : '#10b981';
+        ctx.shadowBlur = 6;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
       // Draw Port labels at midpoints when zoomed in
       if (transform.scale >= 0.7 && (link.srcPort || link.dstPort)) {
-        const midX = (srcPos.x + dstPos.x) / 2;
-        const midY = (srcPos.y + dstPos.y) / 2;
         const text = `${link.srcPort || ''} ⇄ ${link.dstPort || ''}`.trim();
 
         if (text && text !== '⇄') {
@@ -348,21 +455,64 @@ export function TopologyCanvas() {
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
+      // Enterprise Node Card Pill Background (High Contrast, Zero Text Overlap)
+      const label = node.label || node.name || node.ip;
+      const subLabel = node.ip || '';
+
+      ctx.font = 'bold 11px "Outfit", "Inter", sans-serif';
+      let displayLabel = label;
+      let labelW = ctx.measureText(displayLabel).width;
+      if (labelW > 130) {
+        displayLabel = label.slice(0, 16) + '...';
+        labelW = ctx.measureText(displayLabel).width;
+      }
+
+      ctx.font = '9px "JetBrains Mono", monospace';
+      const subW = ctx.measureText(subLabel).width;
+      const maxTextW = Math.max(labelW, subW);
+
+      const pillW = Math.max(76, maxTextW + 16);
+      const pillH = 30;
+      const pillX = pos.x - pillW / 2;
+      const pillY = pos.y + nodeRadius + 5;
+
+      // Dark Glass Pill Background
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(pillX, pillY, pillW, pillH, 5);
+      } else {
+        ctx.rect(pillX, pillY, pillW, pillH);
+      }
+      ctx.fillStyle = isSelected
+        ? 'rgba(15, 23, 42, 0.96)'
+        : isHovered
+        ? 'rgba(15, 23, 42, 0.92)'
+        : 'rgba(10, 15, 30, 0.85)';
+      ctx.fill();
+
+      ctx.strokeStyle = isSelected
+        ? '#00d4ff'
+        : isHovered
+        ? 'rgba(0, 212, 255, 0.5)'
+        : 'rgba(56, 189, 248, 0.2)';
+      ctx.lineWidth = isSelected ? 1.5 : 1;
+      ctx.stroke();
+
       // Node Label (Name)
-      ctx.font = 'bold 12px "Outfit", "Inter", sans-serif';
-      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 11px "Outfit", "Inter", sans-serif';
+      ctx.fillStyle = isSelected ? '#38bdf8' : '#f8fafc';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(node.label || node.name, pos.x, pos.y + nodeRadius + 6);
+      ctx.fillText(displayLabel, pos.x, pillY + 3);
 
-      // Sub-label (IP + Node Type Badge)
-      ctx.font = '10px "JetBrains Mono", monospace';
+      // Sub-label (IP address)
+      ctx.font = '9px "JetBrains Mono", monospace';
       ctx.fillStyle = isSelected ? '#00d4ff' : '#94a3b8';
-      ctx.fillText(node.ip, pos.x, pos.y + nodeRadius + 22);
+      ctx.fillText(subLabel, pos.x, pillY + 16);
     });
 
     ctx.restore();
-  }, [transform, topoNodes, topoLinks, selectedNode, hoveredNode, getNodePos]);
+  }, [transform, topoNodes, topoLinks, selectedNode, hoveredNode, getNodePos, animTick]);
 
   // Coordinate Conversion Helper (Screen Pixels -> Graph Coordinates)
   const getCanvasCoords = useCallback((e) => {

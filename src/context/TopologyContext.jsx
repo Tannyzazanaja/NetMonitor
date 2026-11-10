@@ -328,6 +328,31 @@ export function TopologyProvider({ children }) {
     }
   }, [topoNodes, rawLinks, canEdit]);
 
+  // 1-Click WhatsUp Gold Style Auto-Align Engine (Clears tangled hairball / radar coordinates)
+  const autoAlignTopology = useCallback((targetMode = 'hierarchical') => {
+    setLayoutMode(targetMode);
+    let newPositions = {};
+    if (targetMode === 'force') {
+      newPositions = computeForceDirectedLayout(topoNodes, rawLinks);
+    } else if (targetMode === 'radar') {
+      newPositions = computeRadarLayout(topoNodes);
+    } else {
+      newPositions = computeHierarchicalLayout(topoNodes, rawLinks);
+    }
+
+    setPersistedPositions(newPositions);
+    if (canEdit) {
+      StorageService.saveTopologyPositions(newPositions);
+    }
+
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('netmonitor:reset_canvas_view'));
+      }, 50);
+    }
+    return newPositions;
+  }, [topoNodes, rawLinks, canEdit]);
+
   // Sync positions from server state on mount
   useEffect(() => {
     const syncPositionsFromServer = async () => {
@@ -767,6 +792,7 @@ export function TopologyProvider({ children }) {
         nodePositions,
         layoutMode,
         setLayoutMode: handleSetLayoutMode,
+        autoAlignTopology,
         updateNodePosition,
         selectedNode,
         setSelectedNode,

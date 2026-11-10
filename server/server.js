@@ -4099,8 +4099,8 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // GET / POST /api/storage/topology
-    if (pathname === '/api/storage/topology') {
+    // GET / POST /api/topology and /api/storage/topology
+    if (pathname === '/api/topology' || pathname === '/api/storage/topology') {
       if (req.method === 'GET') {
         const db = readDb();
         return sendJson(res, 200, {
