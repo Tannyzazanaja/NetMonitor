@@ -328,7 +328,7 @@ export function TopologyProvider({ children }) {
     }
   }, [topoNodes, rawLinks, canEdit]);
 
-  // 1-Click WhatsUp Gold Style Auto-Align Engine (Clears tangled hairball / radar coordinates)
+  // 1-Click Enterprise Tree Auto-Align Engine (Clears tangled hairball / radar coordinates)
   const autoAlignTopology = useCallback((targetMode = 'hierarchical') => {
     setLayoutMode(targetMode);
     let newPositions = {};

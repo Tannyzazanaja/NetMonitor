@@ -91,14 +91,14 @@ export function TopologyView({ onOpenAddDevice, onOpenEditDevice }) {
                 </>
               )}
               <span>·</span>
-              <span>สถาปัตยกรรม: <strong style={{ color: '#38bdf8' }}>WhatsUp Gold Tree</strong></span>
+              <span>สถาปัตยกรรม: <strong style={{ color: '#38bdf8' }}>Enterprise Tree Architecture</strong></span>
             </div>
           </div>
         </div>
 
         {/* Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          {/* 1-Click Auto-Align WhatsUp Gold Button */}
+          {/* 1-Click Auto-Align Button */}
           <button
             onClick={() => autoAlignTopology('hierarchical')}
             className="btn btn-secondary"
@@ -113,10 +113,10 @@ export function TopologyView({ onOpenAddDevice, onOpenEditDevice }) {
               alignItems: 'center',
               gap: 6,
             }}
-            title="จัดผังต้นไม้แบบ WhatsUp Gold / Zabbix อัตโนมัติ แก้สายระโยงระยางและจัดกลุ่มกิ่งก้านสาขา"
+            title="จัดผังโครงสร้างต้นไม้อัตโนมัติ จัดกลุ่มกิ่งก้านสาขาและแยกสวิตช์เดี่ยว"
           >
             <Zap size={14} color="#f59e0b" />
-            <span>จัดผังแบบ WhatsUp Gold</span>
+            <span>จัดผังอัตโนมัติ (Auto-Align)</span>
           </button>
 
           {/* Semi-Automatic Discovery Button */}
@@ -212,7 +212,7 @@ export function TopologyView({ onOpenAddDevice, onOpenEditDevice }) {
                   fontWeight: 600,
                   cursor: 'pointer',
                 }}
-                title="จัดผังต้นไม้แบบ WhatsUp Gold / Zabbix (Hierarchical Sugiyama Layered Layout)"
+                title="จัดผังโครงสร้างต้นไม้ตามลำดับชั้น (Hierarchical Sugiyama Layered Layout)"
               >
                 <Layers size={12} />
                 <span>Tree (Sugiyama)</span>

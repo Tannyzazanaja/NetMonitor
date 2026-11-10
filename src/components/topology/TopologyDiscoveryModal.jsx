@@ -265,7 +265,7 @@ export function TopologyDiscoveryModal() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Layers size={16} color={selectedLayout === 'hierarchical' ? 'var(--primary)' : 'var(--text-muted)'} />
                   <strong style={{ fontSize: 12, color: selectedLayout === 'hierarchical' ? 'var(--primary)' : 'var(--text-primary)' }}>
-                    Enterprise Tree (WhatsUp Gold Style - แนะนำ)
+                    Enterprise Tree (จัดผังโครงสร้างต้นไม้ - แนะนำ)
                   </strong>
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>

@@ -244,7 +244,7 @@ export function TopologyCanvas() {
       }
     }
 
-    // 0. Draw Standalone Devices Shelf Boundary Box (WhatsUp Gold Style Enterprise Dock)
+    // 0. Draw Standalone Devices Shelf Boundary Box (Enterprise Dock)
     const standaloneNodes = topoNodes.filter(n => n.isStandalone || getNodePos(n.id)?.isStandalone);
     if (standaloneNodes.length > 0) {
       const sPositions = standaloneNodes.map(n => getNodePos(n.id)).filter(Boolean);
