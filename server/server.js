@@ -1031,20 +1031,25 @@ async function pollAlerts() {
         });
       }
 
-      // 2.5 Parallel Fallback ICMP Probe for active devices missing from Prometheus Blackbox
+      // 2.5 Active Double-Check & Fallback ICMP Probe for any device NOT confirmed alive (false or undefined)
+      // Eliminates False Offline alerts when Blackbox Exporter drops a single ICMP packet during a 30s-60s scrape window
       const enabledDevices = Array.isArray(db.devices)
         ? db.devices.filter(d => d && d.ip && !db.deletedIps?.includes(d.ip.trim()) && d.enabled !== false && d.disabled !== true && d.status !== 'disabled')
         : [];
 
-      const missingPingDevices = enabledDevices.filter(d => icmpStatus[d.ip.trim()] === undefined);
-      if (missingPingDevices.length > 0) {
+      const unconfirmedPingDevices = enabledDevices.filter(d => icmpStatus[d.ip.trim()] !== true);
+      if (unconfirmedPingDevices.length > 0) {
         const PING_CONCURRENCY = 8;
-        for (let i = 0; i < missingPingDevices.length; i += PING_CONCURRENCY) {
-          const batch = missingPingDevices.slice(i, i + PING_CONCURRENCY);
+        for (let i = 0; i < unconfirmedPingDevices.length; i += PING_CONCURRENCY) {
+          const batch = unconfirmedPingDevices.slice(i, i + PING_CONCURRENCY);
           await Promise.all(batch.map(async (d) => {
             const ip = d.ip.trim();
             try {
-              const pRes = await ping.promise.probe(ip, { timeout: 2 });
+              // Probe with up to 2 attempts to prevent single-packet CoPP / ARP loss false negatives
+              let pRes = await ping.promise.probe(ip, { timeout: 2 });
+              if (!pRes || pRes.alive !== true) {
+                pRes = await ping.promise.probe(ip, { timeout: 2 });
+              }
               const alive = Boolean(pRes && pRes.alive === true);
               icmpStatus[ip] = alive;
               if (alive && pRes.time !== undefined && pRes.time !== 'unknown') {
@@ -3827,7 +3832,7 @@ const server = http.createServer(async (req, res) => {
     )) {
       const session = requireAuth(req, res, { allowUnconfigured: true });
       if (!session) return;
-      return sendJson(res, 200, { ok: true, data: devicePerfCache });
+      return sendJson(res, 200, { ok: true, data: devicePerfCache, icmpStatus: latestIcmpStatus });
     }
 
     const singlePerfMatch = pathname.match(/^\/api\/devices\/([^/]+)\/performance$/);

@@ -155,10 +155,16 @@ export function DeviceProvider({ children }) {
         });
       }
 
-      // Backend hardware SNMP cache
+      // Backend hardware SNMP cache & verified double-check ICMP status
       let backendPerfMap = {};
-      if (rBackendPerf.status === 'fulfilled' && rBackendPerf.value?.data && typeof rBackendPerf.value.data === 'object') {
-        backendPerfMap = rBackendPerf.value.data;
+      let backendIcmpMap = {};
+      if (rBackendPerf.status === 'fulfilled' && rBackendPerf.value) {
+        if (rBackendPerf.value.data && typeof rBackendPerf.value.data === 'object') {
+          backendPerfMap = rBackendPerf.value.data;
+        }
+        if (rBackendPerf.value.icmpStatus && typeof rBackendPerf.value.icmpStatus === 'object') {
+          backendIcmpMap = rBackendPerf.value.icmpStatus;
+        }
       }
 
       // Batch performance map from Prometheus
@@ -170,8 +176,10 @@ export function DeviceProvider({ children }) {
         
         customDevices.forEach(d => {
           const ip = d.ip;
-          const isPingAlive = probeMap[ip] === true;
-          const isPingFailed = probeMap[ip] === false;
+          const backendVerifiedPing = backendIcmpMap[ip];
+          // Device is alive if Prometheus Blackbox succeeded OR Backend active double-check ping confirmed it alive
+          const isPingAlive = probeMap[ip] === true || backendVerifiedPing === true;
+          const isPingFailed = (probeMap[ip] === false && backendVerifiedPing !== true) || backendVerifiedPing === false;
 
           const cached = backendPerfMap[ip];
           const promPerf = promPerfMap[ip] || {};
@@ -191,16 +199,18 @@ export function DeviceProvider({ children }) {
 
           const snmpSuccess = snmpUpMap[ip] === true || !!sysNameMap[ip] || (cpuVal != null || memVal != null);
 
-          // User Requirement: ยึดการ ping (ICMP) เป็นหลักเด็ดขาด ถ้า ping ไม่ติดคือตีตกเป็น Offline ไปเลย!
+          // Anti-flapping: prevent single-packet Blackbox drop from causing false offline when unconfirmed by backend
+          const prevFailCount = prev[ip]?.failCount || 0;
+          const nextFailCount = isPingAlive ? 0 : (isPingFailed ? prevFailCount + 1 : prevFailCount);
+
           let isNowOnline = false;
-          if (isPingFailed) {
-            // Ping failed -> Offline immediately!
-            isNowOnline = false;
-          } else if (isPingAlive) {
-            // Ping succeeded -> Online!
+          if (isPingAlive) {
             isNowOnline = true;
+          } else if (backendVerifiedPing === false || nextFailCount >= 2) {
+            // Confirmed offline by backend double-check ping or 2+ consecutive poll failures
+            isNowOnline = false;
           } else {
-            // If Prometheus has no Blackbox ICMP record yet, fallback to previous or default true for newly added
+            // Retain previous state during transient 1-tick unverified drop
             isNowOnline = prev[ip]?.isOnline ?? true;
           }
 
@@ -217,6 +227,7 @@ export function DeviceProvider({ children }) {
             isOnline: isNowOnline,
             icmpOnline: isPingAlive,
             snmpOnline: snmpSuccess,
+            failCount: nextFailCount,
             offlineSince,
             latency: isNowOnline ? (durationMap[ip] ?? 2) : 0,
             sysName: sysNameMap[ip] || d.name,
@@ -229,7 +240,7 @@ export function DeviceProvider({ children }) {
             fans: isNowOnline ? (cached?.fans ?? null) : null,
             poe: isNowOnline ? (cached?.poe ?? null) : null,
             rebootRecent: isNowOnline ? (cached?.rebootRecent ?? false) : false,
-            switchHealth: isNowOnline ? (cached?.health ?? 'normal') : 'offline',
+            switchHealth: isNowOnline ? ((cached?.health && cached.health !== 'offline') ? cached.health : 'normal') : 'offline',
             isSimulated: false
           };
         });

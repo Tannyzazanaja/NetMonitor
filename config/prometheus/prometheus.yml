@@ -37,7 +37,7 @@ scrape_configs:
   # Reads ONLY files in /etc/prometheus/targets/blackbox/
   # Never reads SNMP targets to prevent erroneous probing
   - job_name: 'blackbox-icmp'
-    scrape_interval: 30s
+    scrape_interval: 15s
     scrape_timeout: 10s
     metrics_path: /probe
     params:
